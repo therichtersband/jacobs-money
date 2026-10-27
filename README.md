@@ -12,14 +12,13 @@ Everything you log stays on your phone (browser storage). Nothing is sent to a s
 | `manifest.webmanifest` | Name and icon for the Home Screen |
 | `sw.js` | Offline support |
 | `icons/` | App icons |
-| `vercel.json` | Hosting settings (no search indexing, fresh updates) |
+| `vercel.json` | Settings if it ever moves to Vercel |
 
-## Put it online (free, about 10 minutes)
+## Where it lives
 
-1. Create a **private** GitHub repo named `jacobs-money` and push this folder to it.
-2. Go to vercel.com, sign in with GitHub, choose **Add New**, then **Project**, and import `jacobs-money`.
-3. Framework preset: **Other**. Leave the build command and output directory empty. Click **Deploy**.
-4. Vercel gives you a link like `jacobs-money.vercel.app`. Every push to `main` updates it automatically.
+Hosted free on GitHub Pages: https://therichtersband.github.io/jacobs-money/
+
+Every push to `main` updates it within a minute or two. The code is public, so never put real balances or pay amounts in it. Your numbers live only on your phone.
 
 ## Install on your iPhone
 
