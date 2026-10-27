@@ -99,9 +99,9 @@ button.accts{border:0;width:100%;text-align:left;color:inherit;font:inherit}
 .group-label{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--muted);padding-top:6px}
 
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:color-mix(in srgb,var(--ground) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);
-  padding:8px max(32px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 8px) max(32px,env(safe-area-inset-left,0px))}
+  padding:8px max(12px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 8px) max(12px,env(safe-area-inset-left,0px))}
 nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
-.tab{border:0;background:none;min-width:64px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:500;color:var(--faint)}
+.tab{border:0;background:none;min-width:58px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:500;color:var(--faint)}
 .tab svg{width:22px;height:22px}
 .tab[aria-current="true"]{color:var(--ink);font-weight:600}
 .logbtn{width:56px;height:56px;border-radius:28px;border:0;background:var(--btn);color:var(--btn-ink);display:grid;place-items:center;margin-top:-4px}
@@ -158,6 +158,14 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
+.pk{text-align:left;width:100%;border:0;color:inherit;font:inherit;gap:10px}
+.pk-row{display:flex;align-items:center;gap:12px}
+.pk-emo{width:44px;height:44px;border-radius:12px;background:var(--soft);display:grid;place-items:center;font-size:22px;flex:none}
+.pk-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pk-t b{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk-v{font-size:16px;font-weight:600;white-space:nowrap}
+.pk-row .chev{width:16px;height:16px;color:var(--tick);flex:none}
+.seg button:disabled{opacity:.45}
 .goal{flex-direction:row;align-items:center;gap:16px}
 .ring{width:64px;height:64px;flex:none}
 .goal-t{display:flex;flex-direction:column;gap:3px;min-width:0;font-size:15px}
@@ -193,8 +201,10 @@ details.mon summary .chev{width:16px;height:16px;color:var(--tick);flex:none;tra
 
 <nav class="tabs" aria-label="Sections"><div class="in">
   <button class="tab" data-view="home" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20H4z"/></svg>Home</button>
-  <button class="logbtn" id="logBtn" aria-label="Log spending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   <button class="tab" data-view="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l5-5 4 3 7-8"/></svg>Plan</button>
+  <button class="logbtn" id="logBtn" aria-label="Log spending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button class="tab" data-view="pockets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3h8M9 3v3.5A6 6 0 0 0 5 12v6a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-6a6 6 0 0 0-4-5.5V3"/><path d="M9.5 14h5"/></svg>Pockets</button>
+  <button class="tab" data-view="spending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Spending</button>
 </div></nav>
 
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true"><div class="wrap" id="sheetIn"></div></div>
@@ -351,7 +361,7 @@ function balances(){
   return b;
 }
 const done = ref => TX().some(t => t.ref === ref);
-function project(days, autoOverride, spendMonthly){
+function project(days, autoOverride, spendMonthly, withPockets){
   const t0 = today(), asOf = S().start?.asOf ? pd(S().start.asOf) : t0;
   let s = addDays(t0, -7); if (s < asOf) s = asOf;
   const e = addDays(t0, days), bal = balances(), ev = [];
@@ -374,6 +384,18 @@ function project(days, autoOverride, spendMonthly){
       ev.push({d, name: b.name, amt: -amt, kind: b.amount === "card" ? "card" : "out", ord: 2, ref, item: b});
     }
   }
+  if (withPockets){
+    const pays = [...new Set(ev.filter(x => x.kind === "in" && x.d >= t0).map(x => iso(x.d)))].sort();
+    for (const p of pockets()){
+      if (!p.plan) continue;
+      let left = Math.max(0, pocketGoal(p) - pocketIn(p)); const per = pocketPerPay(p); if (!per) continue;
+      for (const ds of pays){
+        if (!left || (p.date && ds > p.date)) break;
+        const a = Math.min(per, left); left -= a;
+        ev.push({d: pd(ds), name: `${p.emoji || ""} ${p.name}`.trim(), amt: -a, kind: "save", ord: 1, ref: `pocket:${p.id}@${ds}`});
+      }
+    }
+  }
   if (spendMonthly > 0){ const wk = Math.round(spendMonthly * 12 / 52 * 100) / 100; for (let d = addDays(t0, 1); d <= e; d = addDays(d, 7)) ev.push({d, name: "Everyday spending", amt: -wk, kind: "spend", ord: 3, ref: "spend@" + iso(d)}); }
   ev.sort((x, y) => x.d - y.d || x.ord - y.ord);
   let chk = bal.checking, sav = bal.savings;
@@ -381,11 +403,11 @@ function project(days, autoOverride, spendMonthly){
   return ev;
 }
 const cats = () => S().categories || [];
-const catOf = id => cats().find(c => c.id === id) || {id, label: id || "Other", group: "wants", budget: 0};
+const catOf = id => cats().find(c => c.id === id) || {id, label: id === "pocket" ? "Pockets" : id || "Other", group: "wants", budget: 0};
 function spendIn(y, m){
   const by = {};
   for (const x of TX()){
-    if (x.type !== "expense") continue;
+    if (x.type !== "expense" || x.pocket) continue;
     const d = pd(x.date); if (d.getFullYear() !== y || d.getMonth() !== m) continue;
     by[x.category] = (by[x.category] || 0) + +x.amount;
   }
@@ -397,8 +419,9 @@ function usageOrder(){
 }
 function goalDate(auto){
   const g = S().goal; if (!g?.target) return null;
-  if (balances().savings >= g.target) return "done";
-  const ev = project(730, auto).find(x => x.sav >= g.target);
+  const held = pocketsHeld();
+  if (balances().savings - held >= g.target) return "done";
+  const ev = project(730, auto).find(x => x.sav - held >= g.target);
   return ev ? ev.d : null;
 }
 
@@ -424,7 +447,7 @@ function barHTML(spent, budget, expected, cls){
   return `<div class="bar">${budget > 0 ? `<i class="${c}" style="width:${Math.min(100, f*100).toFixed(1)}%"></i>` : ""}${ef != null && ef < 0.995 ? `<u style="left:${(ef*100).toFixed(1)}%"></u>` : ""}</div>`;
 }
 function homeView(){
-  const t = today(), b = balances(), ev = project(60);
+  const t = today(), b = balances(), ev = project(60, null, 0, true);
   const next = ev.find(x => x.kind === "in" && x.d >= t);
   const until = next ? next.d : addDays(t, 14);
   const due = ev.filter(x => x.d < until && x.kind === "out").reduce((s, x) => s - x.amt, 0);
@@ -442,7 +465,8 @@ function homeView(){
     return {bud, sp, exp};
   };
   const N = grp("needs"), W = grp("wants");
-  const g = S().goal || {}, gf = g.target ? Math.min(1, Math.max(0, b.savings / g.target)) : 0, gd = goalDate();
+  const inPockets = pocketsHeld(), freeSav = b.savings - inPockets;
+  const g = S().goal || {}, gf = g.target ? Math.min(1, Math.max(0, freeSav / g.target)) : 0, gd = goalDate();
   const auto = +S().autoSave || 0;
   const meterLine = (label, x) => {
     if (!x.bud) return `<button class="meter" data-open="spending"><div class="meter-top"><b>${label}</b><span>${money(x.sp)} <span class="muted">spent</span></span></div>${barHTML(0, 0, null)}<span class="small" style="color:var(--accent);font-weight:500">Set a ${label.toLowerCase()} budget</span></button>`;
@@ -485,7 +509,7 @@ function homeView(){
     <svg class="ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${R}" fill="none" stroke="var(--track)" stroke-width="6"/>
       <circle cx="32" cy="32" r="${R}" fill="none" stroke="var(--good)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(C * gf).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/>
       <text x="32" y="36.5" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">${Math.round(gf * 100)}%</text></svg>
-    <div class="goal-t"><b>${esc(g.name || "Savings goal")}</b><span>${money(b.savings)} <span class="muted">of ${money(g.target)}</span></span>
+    <div class="goal-t"><b>${esc(g.name || "Savings goal")}</b><span>${money(freeSav)} <span class="muted">of ${money(g.target)}</span></span>${inPockets > 0.5 ? `<span class="small">Not counting ${money(inPockets)} in pockets</span>` : ""}
       <span class="small">${gd === "done" ? "Goal reached 🎉" : gd ? `On track for ${fmtShort(gd)}${gd.getFullYear() !== t.getFullYear() ? ", " + gd.getFullYear() : ""}${auto ? ` · ${money(auto)} a paycheck` : ""}` : auto ? `${money(auto)} a paycheck` : "Set an auto save in Settings"}</span></div>
   </section>` : ""}
   <section class="card" style="gap:4px">
@@ -507,25 +531,225 @@ function evRow(x, showAfter){
     ${showAfter ? `<span class="after ${x.chk < (+S().cushion || 0) ? "neg" : ""}">${money(x.chk)}</span>` : ""}</div>`;
 }
 
+/* ================= spending pace ================= */
+// Monthly rate of everyday spending from what's been logged (last 90 days). Scheduled bills and pockets don't count.
+function trend(){
+  const billCats = new Set((S().bills || []).filter(b => b.amount !== "card").map(b => b.category));
+  const exp = TX().filter(x => x.type === "expense" && !x.ref && !x.pocket && !billCats.has(x.category));
+  if (!exp.length) return null;
+  const t = today(), first = exp.reduce((m, x) => x.date < m ? x.date : m, exp[0].date);
+  let from = pd(first); if (from < addDays(t, -89)) from = addDays(t, -89);
+  const days = Math.round((t - from) / 864e5) + 1;
+  const byCat = {}; let total = 0;
+  for (const x of exp){ const d = pd(x.date); if (d < from || d > t) continue; total += +x.amount; byCat[x.category] = (byCat[x.category] || 0) + +x.amount; }
+  const k = 30.44 / days; for (const c in byCat) byCat[c] *= k;
+  return {days, monthly: total * k, byCat, ready: days >= 14};
+}
+
+/* ================= pockets ================= */
+// Separate budgets (trips, things you want) funded from savings. Spending from a pocket is a real expense
+// tagged with the pocket, kept out of the main monthly budget.
+const pockets = () => S().pockets || [];
+const pocketOf = id => pockets().find(p => p.id === id);
+const pocketIn = p => (p.adds || []).reduce((s, a) => s + +a.amount, 0);
+const pocketSpent = (p, item) => TX().filter(t => t.type === "expense" && t.pocket === p.id && (item == null || t.item === item)).reduce((s, t) => s + +t.amount, 0);
+const pocketBal = p => pocketIn(p) - pocketSpent(p);
+const pocketGoal = p => (p.items || []).length ? p.items.reduce((s, i) => s + (+i.amount || 0), 0) : (+p.target || 0);
+const pocketsHeld = () => pockets().reduce((s, p) => s + Math.max(0, pocketBal(p)), 0);
+function paydaysUntil(dateStr){
+  const t = today(), e = pd(dateStr); if (e < t) return 0;
+  return (S().income || []).reduce((n, inc) => n + ruleDates(inc, t, e).length, 0);
+}
+function pocketPerPay(p){
+  const left = Math.max(0, pocketGoal(p) - pocketIn(p)); if (!left) return 0;
+  if (p.date){ const n = paydaysUntil(p.date); return n ? Math.ceil(left / n / 5) * 5 : left; }
+  return +p.perPay || 0;
+}
+const POCKET_TEMPLATES = [["✈️", "Trip"], ["🛍️", "Something I want"], ["🎁", "Gifts"], ["🚗", "Car"], ["🎸", "Gear"], ["🏠", "Home"]];
+const POCKET_EMOJI = ["✈️", "🛍️", "🎁", "🚗", "🎸", "🏠", "🎉", "💍", "📱", "🐶", "🎓", "💡"];
+let PID = null;
+function pocketsView(){
+  const b = balances(), list = pockets(), held = pocketsHeld(), free = b.savings - held;
+  const card = p => {
+    const goal = pocketGoal(p), fin = pocketIn(p), per = pocketPerPay(p), f = goal ? Math.min(1, fin / goal) : 0;
+    const meta = [p.date ? `by ${fmtShort(pd(p.date))}` : "", per ? `${money(per)} a paycheck` : "", goal && fin >= goal ? "fully saved" : ""].filter(Boolean).join(" · ");
+    return `<button class="card pk" data-pocket="${esc(p.id)}"><span class="pk-row"><span class="pk-emo" aria-hidden="true">${esc(p.emoji || "💰")}</span>
+      <span class="pk-t"><b>${esc(p.name)}</b><span class="small">${meta || "No goal yet"}</span></span><span class="pk-v">${money(pocketBal(p))}</span>${ICON.chev}</span>
+      ${goal ? `<div class="bar"><i class="good" style="width:${(f * 100).toFixed(1)}%"></i></div><span class="small">${money(fin)} of ${money(goal)} saved</span>` : ""}</button>`;
+  };
+  const tpl = POCKET_TEMPLATES.map(([e, n], i) => `<button class="chip" data-ptpl="${i}">${e} ${n}</button>`).join("");
+  return `<div class="topbar"><h1>Pockets</h1>${list.length ? `<button class="link" data-pnew="1">New pocket</button>` : ""}</div>
+  <span class="small" style="margin-top:-18px;font-size:14px;line-height:1.45">Money in savings set aside for trips and things you want, kept apart from your main budget.</span>
+  <div class="accts"><div><span class="small">Savings</span><b>${money(b.savings)}</b></div><div><span class="small">In pockets</span><b>${money(held)}</b></div><div><span class="small">Free</span><b class="${free < 0 ? "neg" : ""}">${money(free)}</b></div></div>
+  ${free < -0.5 ? `<div class="stat bad"><span class="ic" aria-hidden="true">❌</span><div><b>Pockets hold ${money(-free)} more than your savings</b><span class="small">Update your balances or take some money out of a pocket.</span></div></div>` : ""}
+  ${list.length ? `<section class="sec" style="gap:12px">${list.map(card).join("")}</section><section class="sec" style="gap:10px"><span class="small">Start another</span><div class="chips">${tpl}</div></section>`
+    : `<section class="card" style="gap:14px;padding:20px 18px"><span style="font-size:16px;font-weight:600">What are you saving up for?</span><span class="small" style="font-size:14px;line-height:1.45">Pick one to start. You'll set a goal, an optional date, and see how much to put away each paycheck.</span><div class="chips">${tpl}</div></section>`}`;
+}
+function pocketView(){
+  const p = pocketOf(PID); if (!p){ view = "pockets"; return pocketsView(); }
+  const goal = pocketGoal(p), fin = pocketIn(p), spent = pocketSpent(p), bal = fin - spent, per = pocketPerPay(p), left = Math.max(0, goal - fin);
+  const n = p.date ? paydaysUntil(p.date) : 0;
+  const plan = !goal ? `<span class="small" style="font-size:14px">Set a goal amount or add budget items below to see how much to save each paycheck.</span>`
+    : !left ? `<span style="font-size:15px;font-weight:600;color:var(--good)">✅ Fully saved</span>`
+    : p.date ? (n ? `<span style="font-size:15px;line-height:1.45">Put away <b>${money(per)}</b> each paycheck to have ${money(goal)} by ${fmtShort(pd(p.date))} <span class="muted">(${n} paycheck${n === 1 ? "" : "s"} left)</span>.</span>`
+      : `<span class="neg" style="font-size:14px">No paychecks before ${fmtShort(pd(p.date))}. ${money(left)} still to save.</span>`)
+    : `<div class="field"><label for="pPer">Put away each paycheck</label><input id="pPer" inputmode="decimal" placeholder="$0" value="${p.perPay ? money(+p.perPay) : ""}"></div>
+       ${per ? `<span class="small">Fully saved in about ${Math.ceil(left / per)} paychecks.</span>` : `<span class="small">Or add a date to work it out for you.</span>`}`;
+  const items = p.items || [];
+  const acts = [...(p.adds || []).map(a => ({k: "add", id: a.id, date: a.date, amt: +a.amount, title: a.from === "checking" ? "Moved from checking" : "Set aside from savings"})),
+    ...TX().filter(t => t.type === "expense" && t.pocket === p.id).map(t => ({k: "tx", id: t.id, date: t.date, amt: -t.amount, title: t.note || (items.find(i => i.id === t.item) || {}).label || "Spent"}))]
+    .sort((a, c) => a.date < c.date ? 1 : -1);
+  return `<div class="topbar"><button class="iconbtn" data-tab="pockets" aria-label="Back to pockets" style="margin-left:-12px;color:var(--ink)">${ICON.back}</button><button class="link" data-pedit="1">Edit</button></div>
+  <section class="hero" style="margin-top:-12px">
+    <div class="hero-top"><span class="label">${esc(p.emoji || "💰")} ${esc(p.name)}</span>${p.date ? `<span class="pill">${fmtShort(pd(p.date))}</span>` : ""}</div>
+    <span class="big ${bal < 0 ? "neg" : ""}">${bigMoney(bal)}</span>
+    <span class="sub">In this pocket${goal ? ` · goal ${money(goal)}` : ""}${spent ? ` · ${money(spent)} spent so far` : ""}</span>
+  </section>
+  ${goal ? `<div class="bar" style="margin-top:-12px"><i class="good" style="width:${Math.min(100, fin / goal * 100).toFixed(1)}%"></i></div>` : ""}
+  <div class="row2"><button class="primary" data-padd="1">Add money</button><button class="ghost" data-pspend="1" style="border-radius:16px">Log spending</button></div>
+  <section class="card" style="gap:12px">${plan}
+    ${goal && left && per ? `<label class="check" style="font-size:13px"><input type="checkbox" id="pPlan" ${p.plan ? "checked" : ""}> Count this in my Plan</label>` : ""}</section>
+  <section class="card" style="gap:14px">
+    <div class="sec-head"><span class="sec-title">Budget</span><button class="link" data-pitem="new">Add item</button></div>
+    ${items.length ? items.map(i => { const sp = pocketSpent(p, i.id), a = +i.amount || 0;
+      return `<button class="meter" data-pitem="${esc(i.id)}"><div class="meter-top"><b>${esc(i.label)}</b><span>${money(sp)} <span class="muted">of ${money(a)}</span></span></div>${barHTML(sp, a, null)}</button>`; }).join("")
+      + `<span class="small">Items add up to the goal: ${money(goal)}</span>`
+      : `<span class="small" style="font-size:14px;line-height:1.45">Break it down, like flights, hotel and food. The items add up to your goal.</span>`}
+  </section>
+  <section class="sec" style="gap:0"><span class="sec-title" style="padding-bottom:4px">Activity</span>
+    <div class="list">${acts.map(a => `<div class="ev"><span class="d"><span>${pd(a.date).toLocaleDateString("en-US", {month: "short"})}</span><b>${pd(a.date).getDate()}</b></span>
+      <span class="n"><span>${esc(a.title)}</span></span><span class="a ${a.amt > 0 ? "in" : ""}">${a.amt > 0 ? "+" : "−"}${money(Math.abs(a.amt), true)}</span>
+      <button class="iconbtn" data-pdel="${a.k}:${esc(a.id)}" aria-label="Delete" style="width:36px;height:36px;margin-right:-8px">${pendingDel === a.k + ":" + a.id ? '<span class="danger" style="font-size:12px;font-weight:600">Delete</span>' : ICON.close}</button></div>`).join("")
+      || `<div class="empty">Nothing yet. Tap Add money to start this pocket.</div>`}</div></section>`;
+}
+/* --- pocket sheets --- */
+let PF = {};
+function readPF(){ $$("#sheet [data-pf]").forEach(i => PF[i.dataset.pf] = i.value); }
+function openPocketEditor(id, tpl){
+  const p = id ? pocketOf(id) : null, t = tpl != null ? POCKET_TEMPLATES[tpl] : null;
+  PF = {mode: "pocket", id, confirm: false, name: p ? p.name : t ? t[1] : "", emoji: p ? p.emoji : t ? t[0] : "💰", target: p && +p.target ? String(p.target) : "", date: p?.date || ""};
+  drawPocketEditor();
+}
+function drawPocketEditor(){
+  const p = PF.id ? pocketOf(PF.id) : null, hasItems = p && (p.items || []).length;
+  openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">${p ? "Edit pocket" : "New pocket"}</span><span style="width:32px"></span></div>
+    ${fld("pfName", "Name", PF.name, "text", 'data-pf="name" placeholder="Summer trip"')}
+    <div class="field"><span class="flabel">Icon</span><div class="chips">${POCKET_EMOJI.map(e => `<button class="chip" data-pemoji="${e}" aria-pressed="${e === PF.emoji}" style="font-size:18px;padding:6px 11px">${e}</button>`).join("")}</div></div>
+    ${hasItems ? `<span class="small">Goal is ${money(pocketGoal(p))}, the total of this pocket's budget items.</span>` : fld("pfTarget", "Goal amount", PF.target, "text", 'data-pf="target" inputmode="decimal" placeholder="$0"')}
+    ${fld("pfDate", "Need it by (optional)", PF.date, "date", 'data-pf="date"')}
+    <div class="spacer"></div><button class="primary" id="pfSave">Save</button>
+    ${p ? `<button class="ghost danger" id="pfDel">${PF.confirm ? "Tap again to delete this pocket" : "Delete pocket"}</button><span class="small" style="text-align:center">Spending you logged stays in your history.</span>` : ""}`);
+  if (!p) setTimeout(() => $("#pfName")?.select(), 80);
+}
+function savePocket(){
+  readPF(); const name = (PF.name || "").trim(); if (!name) return toast("Give it a name");
+  const list = S().pockets = pockets(); let p = PF.id ? pocketOf(PF.id) : null;
+  if (!p){ p = {id: newId("p"), adds: [], items: []}; list.push(p); }
+  p.name = name; p.emoji = PF.emoji || "💰"; if (PF.target != null) p.target = num(PF.target);
+  if (PF.date) p.date = PF.date; else delete p.date;
+  persist(); PID = p.id; view = "pocket"; closeSheet(); toast("Saved");
+}
+function deletePocket(){
+  if (!PF.confirm){ PF.confirm = true; readPF(); return drawPocketEditor(); }
+  S().pockets = pockets().filter(p => p.id !== PF.id); persist(); view = "pockets"; closeSheet(); toast("Pocket deleted");
+}
+function openPocketMoney(kind){
+  const p = pocketOf(PID); PF = {mode: kind, amount: "", from: "savings", method: "card", item: null, note: "", date: iso(today())};
+  if (kind === "spend" && (p.items || []).length === 1) PF.item = p.items[0].id;
+  drawPocketMoney();
+}
+function drawPocketMoney(){
+  const p = pocketOf(PID), add = PF.mode === "add", b = balances(), free = b.savings - pocketsHeld();
+  const seg = (arr, key, val) => arr.map(([v, l]) => `<button data-${key}="${v}" aria-pressed="${v === val}">${l}</button>`).join("");
+  openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">${add ? "Add to" : "Spend from"} ${esc(p.emoji || "")} ${esc(p.name)}</span><span style="width:32px"></span></div>
+    <div class="amount"><label for="pfAmt" class="small">Amount</label><div class="amt-row"><span aria-hidden="true">$</span><input id="pfAmt" data-pf="amount" inputmode="decimal" placeholder="0" value="${esc(PF.amount)}" autocomplete="off" size="1"></div></div>
+    ${add ? `<div class="field"><span class="flabel">Where it comes from</span><div class="seg">${seg([["savings", "From savings"], ["checking", "From checking"]], "pfrom", PF.from)}</div></div>
+      <span class="small">${PF.from === "savings" ? `Sets aside money already in savings. ${money(free)} of savings is free.` : `Moves money from checking (${money(b.checking)}) into savings for this pocket.`}</span>`
+    : `${fld("pfNote", "What for", PF.note, "text", 'data-pf="note" placeholder="Flights, hotel, dinner"')}
+      ${(p.items || []).length ? `<div class="field"><span class="flabel">Budget item</span><div class="chips">${p.items.map(i => `<button class="chip" data-pitemsel="${esc(i.id)}" aria-pressed="${i.id === PF.item}">${esc(i.label)}</button>`).join("")}</div></div>` : ""}
+      <div class="field"><span class="flabel">Paid with</span><div class="seg">${seg([["card", "Card"], ["checking", "Debit"], ["savings", "Savings"]], "pmeth", PF.method)}</div></div>`}
+    ${fld("pfDate", "Date", PF.date, "date", 'data-pf="date"')}
+    <div class="spacer"></div><button class="primary" id="pfGo">${add ? "Add money" : "Log it"}</button>`);
+  $$("#sheet .amt-row input").forEach(sizeAmt);
+  if (!PF.amount) setTimeout(() => $("#pfAmt")?.focus(), 80);
+}
+function savePocketMoney(){
+  readPF(); const p = pocketOf(PID), amt = num(PF.amount), date = PF.date || iso(today());
+  if (!(amt > 0)) return toast("Enter an amount above $0");
+  const ts = Date.now();
+  if (PF.mode === "add"){
+    const a = {id: newId("a"), date, amount: amt, from: PF.from};
+    if (PF.from === "checking"){ const t = {id: newId("t"), ts, type: "save", amount: amt, category: "transfer", note: `To ${p.name}`, date}; TX().push(t); a.tx = t.id; }
+    (p.adds = p.adds || []).push(a);
+  } else {
+    const t = {id: newId("t"), ts, type: "expense", amount: amt, category: "pocket", pocket: p.id, method: PF.method, note: (PF.note || "").trim() || p.name, date};
+    if (PF.item) t.item = PF.item;
+    TX().push(t);
+  }
+  TX().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0));
+  persist(); closeSheet(); toast(`${PF.mode === "add" ? "Added" : "Logged"} ${money(amt, true)}`);
+}
+function openPocketItem(id){
+  const p = pocketOf(PID), it = id === "new" ? null : (p.items || []).find(i => i.id === id);
+  PF = {mode: "item", id, confirm: false, label: it?.label || "", amount: it ? String(it.amount) : ""};
+  drawPocketItem();
+}
+function drawPocketItem(){
+  const isNew = PF.id === "new";
+  openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">${isNew ? "New budget item" : "Edit budget item"}</span><span style="width:32px"></span></div>
+    ${fld("piLabel", "Item", PF.label, "text", 'data-pf="label" placeholder="Flights"')}${fld("piAmt", "Planned amount", PF.amount, "text", 'data-pf="amount" inputmode="decimal" placeholder="$0"')}
+    <div class="spacer"></div><button class="primary" id="piSave">Save</button>
+    ${isNew ? "" : `<button class="ghost danger" id="piDel">${PF.confirm ? "Tap again to delete" : "Delete item"}</button>`}`);
+  if (isNew) setTimeout(() => $("#piLabel")?.focus(), 80);
+}
+function savePocketItem(){
+  readPF(); const p = pocketOf(PID), label = (PF.label || "").trim(); if (!label) return toast("Name the item");
+  p.items = p.items || [];
+  const it = PF.id === "new" ? (p.items.push({id: newId("i")}), p.items[p.items.length - 1]) : p.items.find(i => i.id === PF.id);
+  it.label = label; it.amount = num(PF.amount);
+  persist(); closeSheet(); toast("Saved");
+}
+function deletePocketItem(){
+  if (!PF.confirm){ PF.confirm = true; readPF(); return drawPocketItem(); }
+  const p = pocketOf(PID); p.items = (p.items || []).filter(i => i.id !== PF.id); persist(); closeSheet(); toast("Deleted");
+}
+function deletePocketEntry(key){
+  if (pendingDel !== key){ pendingDel = key; return render(); }
+  const [k, id] = key.split(":"), p = pocketOf(PID);
+  if (k === "add"){ const a = (p.adds || []).find(x => x.id === id); p.adds = (p.adds || []).filter(x => x.id !== id); if (a?.tx) DATA.tx = TX().filter(t => t.id !== a.tx); }
+  else DATA.tx = TX().filter(t => t.id !== id);
+  pendingDel = null; persist(); render(); toast("Deleted");
+}
+
 /* ================= plan ================= */
 // View-only state for the Plan tab. Nothing here is saved.
-const PLAN = {h: 90, cut: 0, more: 0, spend: true};
+const PLAN = {h: 90, cut: 0, more: 0, spend: true, basis: null};
 const HORIZONS = [[30, "1 mo"], [90, "3 mo"], [180, "6 mo"], [365, "1 yr"]];
 const hName = h => h === 30 ? "1 month" : h === 365 ? "1 year" : `${h / 30} months`;
 const sgn = v => (v >= 0 ? "+" : "−") + money(Math.abs(v));
 // Everyday spending drawn from checking: budgets not already paid by a scheduled bill, minus what card payments cover.
-function everyday(){
+function everyday(basis = PLAN.basis){
   const billCats = new Set((S().bills || []).filter(b => b.amount !== "card").map(b => b.category));
   const budgeted = cats().filter(c => !billCats.has(c.id)).reduce((s, c) => s + (+c.budget || 0), 0);
   const card = (S().bills || []).filter(b => b.amount === "card").reduce((s, b) => s + (+b.fallback || 0), 0);
-  return Math.max(0, budgeted - card);
+  const tr = basis === "trend" ? trend() : null;
+  return Math.max(0, (tr && tr.ready ? tr.monthly : budgeted) - card);
+}
+function paceHTML(){
+  const tr = trend(); if (!tr || !tr.ready) return "";
+  const rows = Object.entries(tr.byCat).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id, pace]) => {
+    const c = catOf(id), bud = +c.budget || 0, over = bud && pace > bud * 1.05;
+    return `<div class="meter"><div class="meter-top"><b>${esc(c.label)}</b><span>${money(pace)}/mo${bud ? ` <span class="muted">of ${money(bud)}</span>` : ""}</span></div>${bud ? barHTML(pace, bud, null) : ""}
+      ${over ? `<span class="small" style="color:var(--warn)">⚠️ On pace to go ${money(pace - bud)} over</span>` : ""}</div>`;
+  }).join("");
+  return `<section class="card" style="gap:14px"><span class="sec-title">📈 Your spending pace</span><span class="small" style="margin-top:-8px">Last ${tr.days} days of logged spending, as a monthly rate</span>${rows}</section>`;
 }
 const autoSavers = () => (S().income || []).some(i => i.autoSave);
 let SERIES = null;
 function planSeries(){
   const t = today(), H = PLAN.h, auto = (+S().autoSave || 0) + PLAN.more;
   const spend = PLAN.spend ? Math.max(0, everyday() - PLAN.cut) : 0;
-  const ev = project(H, auto, spend), b = balances(), chk = [], sav = [], byDay = {};
+  const ev = project(H, auto, spend, true), b = balances(), chk = [], sav = [], byDay = {};
   let i = 0, c = b.checking, s = b.savings;
   for (let d = 0; d <= H; d++){
     const day = addDays(t, d);
@@ -614,6 +838,8 @@ function planMonths(P){
   }).join("");
 }
 function planView(){
+  if (!PLAN.basis){ const tr = trend(); PLAN.basis = tr && tr.ready ? "trend" : "budget"; }
+  const tr = trend(), eb = everyday("budget"), et = everyday("trend");
   const P = SERIES = planSeries(), ed = everyday(), maxCut = Math.max(25, Math.floor(ed / 25) * 25);
   if (PLAN.cut > maxCut) PLAN.cut = 0;
   return `<div class="topbar"><h1>Looking ahead</h1></div>
@@ -626,12 +852,15 @@ function planView(){
   </figure>
   <section class="card" style="gap:16px">
     <span class="sec-title">🔮 What if…</span>
-    ${ed ? `<label class="check" style="font-size:13px"><input type="checkbox" id="pSpend" ${PLAN.spend ? "checked" : ""}> Count everyday spending, about ${money(ed)} a month from your budgets</label>
+    <div class="field"><span class="flabel">Everyday spending based on</span><div class="seg"><button data-basis="budget" aria-pressed="${PLAN.basis === "budget"}">Budgets · ${money(eb)}</button><button data-basis="trend" aria-pressed="${PLAN.basis === "trend"}" ${tr && tr.ready ? "" : "disabled"}>Your pace${tr && tr.ready ? " · " + money(et) : ""}</button></div>
+      <span class="small">${!tr ? "Log what you spend and the plan learns your pace." : !tr.ready ? `Your pace unlocks after 2 weeks of logged spending (${tr.days} day${tr.days === 1 ? "" : "s"} so far).` : PLAN.basis === "trend" ? `Based on the last ${tr.days} days of what you've logged.` : "Based on your monthly budgets."}</span></div>
+    ${ed ? `<label class="check" style="font-size:13px"><input type="checkbox" id="pSpend" ${PLAN.spend ? "checked" : ""}> Count everyday spending, about ${money(ed)} a month</label>
     <div class="slider"><div class="slider-top"><label for="pCut">I spend less each month</label><b id="pCutV">${money(PLAN.cut)}</b></div><input type="range" id="pCut" min="0" max="${maxCut}" step="25" value="${PLAN.cut}"></div>`
       : `<button class="link" data-open="settings" style="align-self:flex-start;text-align:left">Set monthly budgets in Settings to see everyday spending here</button>`}
     ${autoSavers() ? `<div class="slider"><div class="slider-top"><label for="pMore">I save more each paycheck</label><b id="pMoreV">${money(PLAN.more)}</b></div><input type="range" id="pMore" min="0" max="500" step="25" value="${PLAN.more}"></div>` : ""}
     <div id="pWhat" style="display:flex;flex-direction:column;gap:8px">${planWhat(P)}</div>
   </section>
+  ${paceHTML()}
   <section class="sec" style="gap:0"><span class="sec-title" style="padding-bottom:4px">Month by month</span><div id="pMonths">${planMonths(P)}</div></section>`;
 }
 // Sliders and the spending toggle redraw only the numbers, so the slider being dragged stays put.
@@ -723,8 +952,9 @@ function settingsView(){
 
 function render(){
   const app = $("#app");
-  app.innerHTML = view === "plan" ? planView() : view === "spending" ? spendingView() : view === "settings" ? settingsView() : homeView();
-  $$(".tab").forEach(t => t.setAttribute("aria-current", String(t.dataset.view === view || (view !== "plan" && t.dataset.view === "home"))));
+  app.innerHTML = view === "plan" ? planView() : view === "spending" ? spendingView() : view === "settings" ? settingsView() : view === "pockets" ? pocketsView() : view === "pocket" ? pocketView() : homeView();
+  const tab = {plan: "plan", pockets: "pockets", pocket: "pockets", spending: "spending"}[view] || "home";
+  $$(".tab").forEach(t => t.setAttribute("aria-current", String(t.dataset.view === tab)));
 }
 function go(v){ view = v; pendingDel = null; render(); window.scrollTo(0, 0); }
 
@@ -937,6 +1167,24 @@ document.addEventListener("click", e => {
   if ("close" in d){ EDIT = null; return closeSheet(); }
   if (d.log) return logEvent(d.log);
   if (d.h){ PLAN.h = +d.h; return render(); }
+  if (d.basis){ PLAN.basis = d.basis; return render(); }
+  if (d.pocket){ PID = d.pocket; return go("pocket"); }
+  if (d.pnew) return openPocketEditor(null);
+  if (d.ptpl) return openPocketEditor(null, +d.ptpl);
+  if (d.pedit) return openPocketEditor(PID);
+  if (d.padd) return openPocketMoney("add");
+  if (d.pspend) return openPocketMoney("spend");
+  if (d.pitem) return openPocketItem(d.pitem);
+  if (d.pdel) return deletePocketEntry(d.pdel);
+  if (d.pemoji){ readPF(); PF.emoji = d.pemoji; return drawPocketEditor(); }
+  if (d.pfrom){ readPF(); PF.from = d.pfrom; return drawPocketMoney(); }
+  if (d.pmeth){ readPF(); PF.method = d.pmeth; return drawPocketMoney(); }
+  if (d.pitemsel){ readPF(); PF.item = PF.item === d.pitemsel ? null : d.pitemsel; return drawPocketMoney(); }
+  if (el.id === "pfSave") return savePocket();
+  if (el.id === "pfDel") return deletePocket();
+  if (el.id === "pfGo") return savePocketMoney();
+  if (el.id === "piSave") return savePocketItem();
+  if (el.id === "piDel") return deletePocketItem();
   if (d.raise){ PLAN.more = 0; S().autoSave = +d.raise; persist(); render(); return toast(`Auto save is now ${money(+d.raise)} a paycheck`); }
   if (d.month){ const m = new Date(spendMonth.y, spendMonth.m + +d.month, 1); spendMonth = {y: m.getFullYear(), m: m.getMonth()}; return render(); }
   if (d.deltx){
@@ -976,6 +1224,8 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (t.id === "fAuto") F.auto = t.checked;
   if (t.id === "pSpend"){ PLAN.spend = t.checked; updatePlan(); }
+  if (t.id === "pPlan"){ const p = pocketOf(PID); if (p){ p.plan = t.checked; persist(); toast(t.checked ? "Added to your Plan" : "Taken out of your Plan"); } }
+  if (t.id === "pPer"){ const p = pocketOf(PID); if (p){ p.perPay = num(t.value); persist(); render(); } }
   if (t.id === "eFreq" || t.id === "eCard") syncEditor();
   if (t.id === "importFile" && t.files[0]){ importData(t.files[0]); t.value = ""; }
   if (t.dataset.bud){ const c = cats().find(x => x.id === t.dataset.bud); if (c){ c.budget = num(t.value); persist(); t.value = c.budget ? money(c.budget) : ""; toast(`${c.label} budget ${c.budget ? "set to " + money(c.budget) : "removed"}`); } }
