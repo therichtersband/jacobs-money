@@ -1,10 +1,10 @@
 // Offline support: keeps the app shell and fonts cached so $$$ opens without a connection.
 // Bump VERSION whenever you change index.html so phones pick up the update.
-const VERSION = "money-v7";
+const VERSION = "money-v8";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, {cache: "reload"})))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", e => {
@@ -18,7 +18,8 @@ self.addEventListener("fetch", e => {
 
   // The page itself: try the network first so updates show up, fall back to the cached copy offline.
   if (req.mode === "navigate"){
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put("./index.html", copy)); return res; })
+    // no-cache: always ask the server for the newest page instead of a browser-cached copy
+    e.respondWith(fetch(req.url, {cache: "no-cache", credentials: "same-origin"}).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put("./index.html", copy)); return res; })
       .catch(() => caches.match("./index.html")));
     return;
   }
