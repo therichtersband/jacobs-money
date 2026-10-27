@@ -36,6 +36,7 @@
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.4;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+html,body{overflow-x:hidden}
 body{min-height:100dvh;overscroll-behavior-y:none}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -61,6 +62,7 @@ h1{margin:0;font-size:28px;font-weight:500;letter-spacing:-.02em}
 .hero .big{font-size:clamp(54px,17vw,72px);font-weight:300;letter-spacing:-.04em;line-height:1}
 .hero .sub{font-size:13px;color:var(--muted)}
 
+button.accts{border-left:0;border-right:0;background:none;width:100%;text-align:left;color:inherit;font:inherit}
 .accts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0}
 .accts>div{display:flex;flex-direction:column;gap:2px;min-width:0}
 .accts>div+div{padding-left:16px;border-left:1px solid var(--line)}
@@ -100,7 +102,7 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 
 /* sheets */
 .scrim{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.32)}
-.sheet{position:fixed;left:0;right:0;bottom:0;top:0;z-index:31;background:var(--ground);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet{position:fixed;left:0;right:0;bottom:0;top:0;z-index:31;background:var(--ground);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
 .sheet .wrap{max-width:480px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:24px;
   padding:calc(env(safe-area-inset-top,0px) + 12px) max(24px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 24px) max(24px,env(safe-area-inset-left,0px))}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .24s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(24px);opacity:0}}}
@@ -144,11 +146,32 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .item .t b{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item .v{font-size:15px;white-space:nowrap}
 .item .chev{width:16px;height:16px;color:var(--tick);flex:none}
-.item input.inl{width:96px;text-align:right;font-size:15px;background:var(--ground);border:0;border-radius:10px;padding:9px 10px;color:var(--ink)}
+.item input.inl{width:96px;text-align:right;font-size:16px;background:var(--ground);border:0;border-radius:10px;padding:9px 10px;color:var(--ink)}
 .item input.inl::placeholder{color:var(--faint)}
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
+.stat{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border-radius:16px;padding:14px 16px}
+.stat .ic{font-size:20px;line-height:1.25}
+.stat div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.stat b{font-size:16px;font-weight:600} .stat.good b{color:var(--good)} .stat.warn b{color:var(--warn)} .stat.bad b{color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.kpi{display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .kv{font-size:clamp(24px,8vw,30px);font-weight:400;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.delta{font-size:12px;font-weight:600}
+.readout{font-size:13px;line-height:1.5;color:var(--muted);min-height:40px}
+.readout b{color:var(--ink);font-weight:600}
+.slider{display:flex;flex-direction:column;gap:4px}
+.slider-top{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+input[type=range]{width:100%;height:32px;margin:0;accent-color:var(--accent)}
+details.mon{border-top:1px solid var(--line)}
+details.mon summary{list-style:none;display:flex;align-items:center;gap:12px;padding:14px 0;cursor:pointer;min-height:56px}
+details.mon summary::-webkit-details-marker{display:none}
+details.mon summary .chev{width:16px;height:16px;color:var(--tick);flex:none;transition:transform .2s} details.mon[open] summary .chev{transform:rotate(90deg)}
+.mt{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.mt b{font-size:15px;font-weight:500}
+.mn{font-size:15px;font-weight:600;white-space:nowrap}
+.mbars{display:flex;flex-direction:column;gap:5px}
 .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .legend span{display:flex;align-items:center;gap:6px}
 .legend i{width:14px;height:2px;display:inline-block}
@@ -317,7 +340,7 @@ function balances(){
   return b;
 }
 const done = ref => TX().some(t => t.ref === ref);
-function project(days, autoOverride){
+function project(days, autoOverride, spendMonthly){
   const t0 = today(), asOf = S().start?.asOf ? pd(S().start.asOf) : t0;
   let s = addDays(t0, -7); if (s < asOf) s = asOf;
   const e = addDays(t0, days), bal = balances(), ev = [];
@@ -340,6 +363,7 @@ function project(days, autoOverride){
       ev.push({d, name: b.name, amt: -amt, kind: b.amount === "card" ? "card" : "out", ord: 2, ref, item: b});
     }
   }
+  if (spendMonthly > 0){ const wk = Math.round(spendMonthly * 12 / 52 * 100) / 100; for (let d = addDays(t0, 1); d <= e; d = addDays(d, 7)) ev.push({d, name: "Everyday spending", amt: -wk, kind: "spend", ord: 3, ref: "spend@" + iso(d)}); }
   ev.sort((x, y) => x.d - y.d || x.ord - y.ord);
   let chk = bal.checking, sav = bal.savings;
   for (const x of ev){ chk += x.amt; if (x.kind === "save") sav -= x.amt; x.chk = chk; x.sav = sav; x.late = x.d < t0; }
@@ -425,11 +449,13 @@ function homeView(){
     <span class="big ${safe < 0 ? "neg" : ""}">${money(safe)}</span>
     <span class="sub">${next ? `until payday, ${fmtWD(next.d)} ${fmtShort(next.d)}` : "over the next two weeks"}${due ? ` · ${money(due)} in bills first` : ""} · ${money(cushion)} cushion kept aside</span>
   </section>
-  <div class="accts">
+  ${!TX().length && !b.checking && !b.savings && !b.card ? `<button class="outline" data-open="match" style="background:none;text-align:left;width:100%;align-items:center;color:inherit">
+    <span style="flex:1;display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:600">Add your balances to start</span><span class="small" style="font-size:13px">Type in what checking and savings have right now.</span></span><span class="mini" style="padding:9px 12px;font-size:13px">Add</span></button>` : ""}
+  <button class="accts" data-open="match" aria-label="Update your balances">
     <div><span class="small">Checking</span><b>${money(b.checking)}</b></div>
     <div><span class="small">Savings</span><b>${money(b.savings)}</b></div>
     <div><span class="small">${b.card < -0.5 ? "Card credit" : "Card owed"}</span><b>${money(Math.abs(b.card))}</b></div>
-  </div>
+  </button>
   <section class="sec">
     <div class="sec-head"><span class="sec-title">${t.toLocaleDateString("en-US",{month:"long"})}</span><button class="link" data-open="spending">Day ${t.getDate()} of ${days} · Details</button></div>
     ${meterLine("Needs", N)}
@@ -454,66 +480,148 @@ function evRow(x, showAfter){
     ${showAfter ? `<span class="after ${x.chk < (+S().cushion || 0) ? "neg" : ""}">${money(x.chk)}</span>` : ""}</div>`;
 }
 
-function chartSVG(ev){
-  const b = balances(), t = today(), D = 60, W = 342, H = 132;
-  const pc = [[0, b.checking]], ps = [[0, b.savings]];
-  for (const x of ev){ const d = Math.max(0, Math.round((x.d - t) / 864e5)); pc.push([d, x.chk]); if (x.kind === "save") ps.push([d, x.sav]); }
-  pc.push([D, pc[pc.length-1][1]]); ps.push([D, ps[ps.length-1][1]]);
-  const goal = +S().goal?.target || 0;
-  const max = Math.max(goal, ...pc.map(p => p[1]), ...ps.map(p => p[1]), 1) * 1.05;
-  const min = Math.min(0, ...pc.map(p => p[1]));
+/* ================= plan ================= */
+// View-only state for the Plan tab. Nothing here is saved.
+const PLAN = {h: 90, cut: 0, more: 0, spend: true};
+const HORIZONS = [[30, "1 mo"], [90, "3 mo"], [180, "6 mo"], [365, "1 yr"]];
+const hName = h => h === 30 ? "1 month" : h === 365 ? "1 year" : `${h / 30} months`;
+const sgn = v => (v >= 0 ? "+" : "−") + money(Math.abs(v));
+// Everyday spending drawn from checking: budgets not already paid by a scheduled bill, minus what card payments cover.
+function everyday(){
+  const billCats = new Set((S().bills || []).filter(b => b.amount !== "card").map(b => b.category));
+  const budgeted = cats().filter(c => !billCats.has(c.id)).reduce((s, c) => s + (+c.budget || 0), 0);
+  const card = (S().bills || []).filter(b => b.amount === "card").reduce((s, b) => s + (+b.fallback || 0), 0);
+  return Math.max(0, budgeted - card);
+}
+const autoSavers = () => (S().income || []).some(i => i.autoSave);
+let SERIES = null;
+function planSeries(){
+  const t = today(), H = PLAN.h, auto = (+S().autoSave || 0) + PLAN.more;
+  const spend = PLAN.spend ? Math.max(0, everyday() - PLAN.cut) : 0;
+  const ev = project(H, auto, spend), b = balances(), chk = [], sav = [], byDay = {};
+  let i = 0, c = b.checking, s = b.savings;
+  for (let d = 0; d <= H; d++){
+    const day = addDays(t, d);
+    while (i < ev.length && ev[i].d <= day){ c = ev[i].chk; s = ev[i].sav; (byDay[d] = byDay[d] || []).push(ev[i]); i++; }
+    chk.push(c); sav.push(s);
+  }
+  return {ev, chk, sav, byDay, H, spend, auto};
+}
+function planHead(P){
+  const t = today(), b = balances(), H = P.H, cushion = +S().cushion || 0;
+  let lo = 0; P.chk.forEach((v, d) => { if (v < P.chk[lo]) lo = d; });
+  const low = P.chk[lo], when = fmtShort(addDays(t, lo));
+  const [cls, ic, title, sub] = low < 0 ? ["bad", "❌", `Checking runs out around ${when}`, `It drops to ${money(low)}. Move money from savings or spend less before then.`]
+    : low < cushion ? ["warn", "⚠️", `Tight around ${when}`, `Checking dips to ${money(low)}, under your ${money(cushion)} cushion.`]
+    : ["good", "✅", "On track", `Checking never drops below ${money(low)} in the next ${hName(H)}.`];
+  const g = S().goal || {}, gd = goalDate(P.auto);
+  const goalLine = g.target ? (gd === "done" ? `🎯 ${esc(g.name || "Goal")} reached` : gd ? `🎯 ${esc(g.name || "Goal")} reached ${fmtShort(gd)}${gd.getFullYear() !== t.getFullYear() ? ", " + gd.getFullYear() : ""}` : `🎯 ${esc(g.name || "Goal")} is more than 2 years out`) : "";
+  const kpi = (label, end, now) => `<div class="kpi"><span class="small">${label}</span><span class="kv">${money(end)}</span><span class="delta ${end - now < 0 ? "neg" : "in"}">${sgn(end - now)} from today</span></div>`;
+  return `<div class="stat ${cls}"><span class="ic" aria-hidden="true">${ic}</span><div><b>${title}</b><span class="small">${sub}</span></div></div>
+    <div class="kpis">${kpi(`Savings in ${hName(H)}`, P.sav[H], b.savings)}${kpi(`Checking in ${hName(H)}`, P.chk[H], b.checking)}</div>
+    ${goalLine ? `<span class="small" style="font-size:13px;margin-top:-8px">${goalLine}</span>` : ""}`;
+}
+function planChart(P){
+  const t = today(), D = P.H, W = 342, H = 150, goal = +S().goal?.target || 0;
+  const all = P.chk.concat(P.sav), max = Math.max(goal, ...all, 1) * 1.08, min = Math.min(0, ...all);
   const X = d => (d / D * W).toFixed(1), Y = v => (H - (v - min) / (max - min) * H).toFixed(1);
-  const step = p => p.map((q, i) => i ? `H${X(q[0])} V${Y(q[1])}` : `M${X(q[0])} ${Y(q[1])}`).join(" ");
-  const mid = addDays(t, 30);
-  const lc = pc[pc.length-1][1], ls = ps[ps.length-1][1];
-  return `<svg role="img" aria-label="Checking goes from ${money(b.checking)} to ${money(lc)}, savings from ${money(b.savings)} to ${money(ls)} over 60 days" viewBox="0 -8 ${W} ${H+28}" style="width:100%;height:auto;overflow:visible">
+  const step = a => `M0 ${Y(a[0])}` + a.map((v, d) => d && v !== a[d - 1] ? ` H${X(d)} V${Y(v)}` : "").join("") + ` H${W}`;
+  let ticks = "";
+  for (let m = new Date(t.getFullYear(), t.getMonth() + 1, 1); (m - t) / 864e5 <= D; m = new Date(m.getFullYear(), m.getMonth() + 1, 1)){
+    const x = X(Math.round((m - t) / 864e5)), lab = m.toLocaleDateString("en-US", {month: "short"});
+    ticks += `<line x1="${x}" x2="${x}" y1="0" y2="${H}" stroke="var(--line)"/>${+x > 10 && +x < W - 14 ? `<text x="${x}" y="${H + 16}" font-size="10" fill="var(--muted)" text-anchor="middle">${lab}</text>` : ""}`;
+  }
+  return `<svg id="pSvg" role="img" aria-label="Checking goes from ${money(P.chk[0])} to ${money(P.chk[D])}, savings from ${money(P.sav[0])} to ${money(P.sav[D])} over ${hName(D)}" viewBox="0 -8 ${W} ${H + 30}" style="width:100%;height:auto;display:block;touch-action:pan-y">
+    ${ticks}
+    ${min < 0 ? `<line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--bad)" stroke-opacity=".5" stroke-dasharray="2 3"/>` : `<line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)"/>`}
     ${goal ? `<line x1="0" x2="${W}" y1="${Y(goal)}" y2="${Y(goal)}" stroke="var(--tick)" stroke-dasharray="3 4"/>` : ""}
-    <line x1="0" x2="${W}" y1="${Y(Math.max(min,0))}" y2="${Y(Math.max(min,0))}" stroke="var(--line)"/>
-    <line x1="${W/2}" x2="${W/2}" y1="0" y2="${H}" stroke="var(--line)" stroke-opacity=".6"/>
-    <path d="${step(ps)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
-    <path d="${step(pc)}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
-    <circle cx="${W}" cy="${Y(ls)}" r="3.5" fill="var(--accent)"/><circle cx="${W}" cy="${Y(lc)}" r="3.5" fill="var(--ink)"/>
-    <text x="0" y="${H+18}" font-size="11" fill="var(--muted)">${fmtShort(t)}</text>
-    <text x="${W/2}" y="${H+18}" font-size="11" fill="var(--muted)" text-anchor="middle">${fmtShort(mid)}</text>
-    <text x="${W}" y="${H+18}" font-size="11" fill="var(--muted)" text-anchor="end">${fmtShort(addDays(t, D))}</text></svg>`;
+    <path d="${step(P.sav)}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="${step(P.chk)}" fill="none" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"/>
+    <g id="pMark" hidden><line id="pMl" y1="0" y2="${H}" stroke="var(--ink)" stroke-opacity=".35"/><circle id="pMs" r="4.5" fill="var(--accent)"/><circle id="pMc" r="4.5" fill="var(--ink)"/></g>
+    <rect id="pHit" x="0" y="-8" width="${W}" height="${H + 30}" fill="transparent"/></svg>`;
+}
+function planRead(d){
+  const P = SERIES, t = today();
+  if (d == null) return `<b>In ${hName(P.H)}:</b> checking ${money(P.chk[P.H])}, savings ${money(P.sav[P.H])}<br>👆 Drag across the chart to see any day.`;
+  const evs = (P.byDay[d] || []).filter(x => x.kind !== "spend");
+  return `<b>${d ? fmtDay(addDays(t, d)) : "Today"}:</b> checking ${money(P.chk[d])}, savings ${money(P.sav[d])}<br>${evs.length ? evs.map(x => `${esc(x.name)} ${x.amt > 0 ? "+" : "−"}${money(Math.abs(x.amt))}`).join(" · ") : "Nothing scheduled this day."}`;
+}
+function showDay(d){
+  const P = SERIES, svg = $("#pSvg"); if (!P || !svg) return;
+  const W = 342, H = 150, goal = +S().goal?.target || 0, all = P.chk.concat(P.sav);
+  const max = Math.max(goal, ...all, 1) * 1.08, min = Math.min(0, ...all), y = v => H - (v - min) / (max - min) * H, x = d / P.H * W;
+  $("#pMark").removeAttribute("hidden");
+  $("#pMl").setAttribute("x1", x); $("#pMl").setAttribute("x2", x);
+  $("#pMc").setAttribute("cx", x); $("#pMc").setAttribute("cy", y(P.chk[d]));
+  $("#pMs").setAttribute("cx", x); $("#pMs").setAttribute("cy", y(P.sav[d]));
+  $("#pRead").innerHTML = planRead(d);
+}
+function planWhat(P){
+  const base = goalDate(), now = goalDate(P.auto), g = S().goal || {};
+  const lines = [];
+  if (PLAN.more && g.target && base instanceof Date && now instanceof Date){
+    const wk = Math.round((base - now) / (7 * 864e5));
+    lines.push(`🎯 ${esc(g.name || "Goal")} by ${fmtShort(now)} instead of ${fmtShort(base)}${wk > 0 ? `, ${wk} week${wk === 1 ? "" : "s"} sooner` : ""}`);
+  }
+  if (PLAN.cut) lines.push(`💵 ${money(PLAN.cut * PLAN.h / 30)} more in checking after ${hName(PLAN.h)}`);
+  return (lines.length ? lines.map(l => `<span style="font-size:14px">${l}</span>`).join("") : `<span class="small">Move the sliders to try a change. Nothing is saved unless you tap the button.</span>`)
+    + (PLAN.more ? `<button class="mini" data-raise="${P.auto}" style="align-self:flex-start;padding:9px 12px;font-size:13px">Save ${money(P.auto)} every paycheck</button>` : "");
+}
+function planMonths(P){
+  const t = today(), months = [];
+  for (const x of P.ev){
+    const k = x.d.getFullYear() * 12 + x.d.getMonth(); let m = months[months.length - 1];
+    if (!m || m.k !== k){ m = {k, d: x.d, inc: 0, bills: 0, spend: 0, save: 0, items: []}; months.push(m); }
+    if (x.kind === "in") m.inc += x.amt; else if (x.kind === "save") m.save -= x.amt; else if (x.kind === "spend") m.spend -= x.amt; else m.bills -= x.amt;
+    if (x.kind !== "spend" && x.kind !== "save") m.items.push(x);
+  }
+  if (!months.length) return `<div class="empty">Nothing scheduled. Add paychecks and bills in Settings.</div>`;
+  return months.map((m, i) => {
+    const out = m.bills + m.spend + m.save, net = m.inc - out, big = Math.max(m.inc, out, 1);
+    const label = m.d.toLocaleDateString("en-US", {month: "long", year: m.d.getFullYear() !== t.getFullYear() ? "numeric" : undefined});
+    return `<details class="mon" ${i === 0 ? "open" : ""}><summary><span class="mt"><b>${label}</b><span class="small">${money(m.inc)} in · ${money(out)} out</span></span>
+      <span class="mn ${net < 0 ? "neg" : "in"}">${net < 0 ? "⚠️ " : ""}${sgn(net)}</span>${ICON.chev}</summary>
+      <div class="mbars"><div class="bar"><i class="good" style="width:${(m.inc / big * 100).toFixed(1)}%"></i></div><div class="bar"><i style="width:${(out / big * 100).toFixed(1)}%;background:var(--ink)"></i></div></div>
+      <div class="small" style="padding:6px 0 4px">Bills ${money(m.bills)}${m.spend ? ` · Everyday spending ${money(m.spend)}` : ""}${m.save ? ` · To savings ${money(m.save)}` : ""}</div>
+      <div class="list">${m.items.map(x => evRow(x, true)).join("")}</div></details>`;
+  }).join("");
 }
 function planView(){
-  const t = today(), ev = project(60);
-  const tin = ev.filter(x => x.kind === "in").reduce((s, x) => s + x.amt, 0);
-  const tout = ev.filter(x => x.kind === "out" || x.kind === "card").reduce((s, x) => s - x.amt, 0);
-  const tsave = ev.filter(x => x.kind === "save").reduce((s, x) => s - x.amt, 0);
-  // suggestion: if checking grows a lot, offer to save more
-  const b = balances(), endChk = ev.length ? ev[ev.length-1].chk : b.checking;
-  const perMonth = (endChk - b.checking) / 2;
-  const auto = +S().autoSave || 0;
-  const paysPerMonth = (() => { const n = ev.filter(x => x.kind === "save").length; return n / 2; })();
-  let tip = "";
-  if (perMonth > 300 && paysPerMonth > 0){
-    const extra = Math.floor((perMonth * 0.6 / paysPerMonth) / 50) * 50;
-    if (extra >= 50){
-      const now = goalDate(), then = goalDate(auto + extra);
-      const g = S().goal || {};
-      tip = `<div class="outline"><div style="flex:1;display:flex;flex-direction:column;gap:4px">
-        <span style="font-size:14px;font-weight:600">Checking keeps growing</span>
-        <span class="small" style="font-size:13px;line-height:1.45">About ${money(perMonth)} a month is left over. Saving ${money(auto + extra)} a paycheck instead of ${money(auto)}${then instanceof Date && now instanceof Date ? ` reaches your ${esc((g.name || "goal").toLowerCase())} by ${fmtShort(then)} instead of ${fmtShort(now)}` : " builds savings faster"}.</span></div>
-        <button class="mini" style="padding:9px 12px;font-size:13px" data-raise="${auto + extra}">Raise it</button></div>`;
-    }
-  }
-  // group events by month
-  const months = []; for (const x of ev){ if (x.kind === "save") continue; const k = x.d.getFullYear() * 12 + x.d.getMonth(); let m = months[months.length-1]; if (!m || m.k !== k){ m = {k, label: x.d.toLocaleDateString("en-US", {month:"long"}), items: []}; months.push(m); } m.items.push(x); }
-  return `<div class="topbar"><h1>Next 60 days</h1></div>
-  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:-12px">
-    <div><span class="small">Coming in</span><div class="in" style="font-size:18px;font-weight:500">${money(tin)}</div></div>
-    <div><span class="small">Bills</span><div style="font-size:18px;font-weight:500">${money(tout)}</div></div>
-    <div><span class="small">To savings</span><div style="font-size:18px;font-weight:500">${money(tsave)}</div></div>
-  </div>
-  <figure class="card" style="padding:18px 16px 12px">
+  const P = SERIES = planSeries(), ed = everyday(), maxCut = Math.max(25, Math.floor(ed / 25) * 25);
+  if (PLAN.cut > maxCut) PLAN.cut = 0;
+  return `<div class="topbar"><h1>Looking ahead</h1></div>
+  <div class="seg" role="group" aria-label="How far ahead" style="margin-top:-12px">${HORIZONS.map(([h, l]) => `<button data-h="${h}" aria-pressed="${h === PLAN.h}">${l}</button>`).join("")}</div>
+  <section class="sec" id="pHead">${planHead(P)}</section>
+  <figure class="card" style="padding:16px 14px 10px;gap:12px">
     <div class="legend"><span><i style="background:var(--ink)"></i>Checking</span><span><i style="background:var(--accent)"></i>Savings</span>${S().goal?.target ? `<span><i style="height:0;border-top:1.5px dashed var(--tick)"></i>Goal ${money(+S().goal.target)}</span>` : ""}</div>
-    ${chartSVG(ev)}
+    <div id="pChart">${planChart(P)}</div>
+    <div class="readout" id="pRead" aria-live="polite">${planRead(null)}</div>
   </figure>
-  ${tip}
-  ${months.map(m => `<section class="sec" style="gap:0"><span class="group-label">${m.label.toUpperCase()}</span><div class="list">${m.items.map(x => evRow(x, true)).join("")}</div></section>`).join("") || `<div class="empty">Nothing scheduled. Add bills and income in Settings.</div>`}`;
+  <section class="card" style="gap:16px">
+    <span class="sec-title">🔮 What if…</span>
+    ${ed ? `<label class="check" style="font-size:13px"><input type="checkbox" id="pSpend" ${PLAN.spend ? "checked" : ""}> Count everyday spending, about ${money(ed)} a month from your budgets</label>
+    <div class="slider"><div class="slider-top"><label for="pCut">I spend less each month</label><b id="pCutV">${money(PLAN.cut)}</b></div><input type="range" id="pCut" min="0" max="${maxCut}" step="25" value="${PLAN.cut}"></div>`
+      : `<button class="link" data-open="settings" style="align-self:flex-start;text-align:left">Set monthly budgets in Settings to see everyday spending here</button>`}
+    ${autoSavers() ? `<div class="slider"><div class="slider-top"><label for="pMore">I save more each paycheck</label><b id="pMoreV">${money(PLAN.more)}</b></div><input type="range" id="pMore" min="0" max="500" step="25" value="${PLAN.more}"></div>` : ""}
+    <div id="pWhat" style="display:flex;flex-direction:column;gap:8px">${planWhat(P)}</div>
+  </section>
+  <section class="sec" style="gap:0"><span class="sec-title" style="padding-bottom:4px">Month by month</span><div id="pMonths">${planMonths(P)}</div></section>`;
 }
+// Sliders and the spending toggle redraw only the numbers, so the slider being dragged stays put.
+function updatePlan(){
+  const P = SERIES = planSeries();
+  $("#pHead").innerHTML = planHead(P); $("#pChart").innerHTML = planChart(P); $("#pRead").innerHTML = planRead(null);
+  $("#pWhat").innerHTML = planWhat(P); $("#pMonths").innerHTML = planMonths(P);
+  if ($("#pCutV")) $("#pCutV").textContent = money(PLAN.cut);
+  if ($("#pMoreV")) $("#pMoreV").textContent = money(PLAN.more);
+}
+function scrub(e){
+  if (!SERIES || e.target.id !== "pHit") return;
+  const r = e.target.getBoundingClientRect();
+  showDay(Math.max(0, Math.min(SERIES.H, Math.round((e.clientX - r.left) / r.width * SERIES.H))));
+}
+document.addEventListener("pointerdown", e => { if (e.target.id === "pHit"){ try { e.target.setPointerCapture(e.pointerId); } catch(_){} scrub(e); } });
+document.addEventListener("pointermove", scrub);
 
 let spendMonth = null;
 function spendingView(){
@@ -618,8 +726,8 @@ function drawLog(focus){
     body = `<div class="field"><label for="fNote">Where</label><input id="fNote" value="${esc(F.note)}" placeholder="Trader Joe's, Guitar Center, Uber" autocomplete="off"></div>
       <div class="field"><span class="flabel">Category</span><div class="chips">${chips}
         ${F.newCat ? `<div class="newcat"><input id="fNewCat" placeholder="New category name" aria-label="New category name"><button class="chip" data-addcat="wants" aria-pressed="false">Want</button><button class="chip" data-addcat="needs" aria-pressed="false">Need</button></div>` : `${rest.length && !F.allCats ? `<button class="chip new" data-allcats="1">More</button>` : ""}<button class="chip new" data-newcat="1">+ New</button>`}</div></div>
-      <div style="display:flex;gap:12px;align-items:flex-end"><div class="field" style="flex:1"><span class="flabel">Paid with</span><div class="seg">${segBtns([["card","Card"],["checking","Debit"],["cash","Cash"]], "method", F.method)}</div></div>
-        <div class="field" style="width:132px"><label for="fDate">Date</label><input id="fDate" type="date" value="${esc(F.date)}" style="padding:9px 10px;min-height:42px;font-size:14px"></div></div>`;
+      <div class="field"><span class="flabel">Paid with</span><div class="seg">${segBtns([["card","Card"],["checking","Debit"],["cash","Cash"]], "method", F.method)}</div></div>
+      ${fld("fDate","Date",F.date,"date")}`;
   } else if (F.type === "income"){
     const srcs = (S().income || []).map(i => [i.id, i.name]).concat([["other", "Other"]]);
     if (!F.source) F.source = srcs[0][0];
@@ -750,13 +858,16 @@ function deleteEditor(){
 /* --- match bank --- */
 function openMatch(){
   const b = balances();
-  openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">Match my bank</span><span style="width:32px"></span></div>
+  openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">Your balances</span><span style="width:32px"></span></div>
     <span class="small" style="font-size:14px;line-height:1.5">Type what your bank app shows. The difference is saved as a balance fix, so your history stays intact.</span>
-    ${fld("mChk","Checking",b.checking.toFixed(2),"text",'inputmode="decimal"')}${fld("mSav","Savings",b.savings.toFixed(2),"text",'inputmode="decimal"')}${fld("mCard","Card owed",b.card.toFixed(2),"text",'inputmode="decimal"')}
-    <div class="spacer"></div><button class="primary" id="mGo">Update balances</button>`);
+    ${fld("mChk","Checking",b.checking ? b.checking.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}${fld("mSav","Savings",b.savings ? b.savings.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}${fld("mCard","Credit card balance owed",b.card ? b.card.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}
+    <div class="spacer"></div><button class="primary" id="mGo">Save balances</button>`);
+  setTimeout(() => $("#mChk")?.focus(), 80);
 }
 function saveMatch(){
   const b = balances(), want = {checking: num($("#mChk").value), savings: num($("#mSav").value), card: num($("#mCard").value)};
+  // Nothing logged yet: these simply become the starting balances
+  if (!TX().length){ S().start = {asOf: iso(today()), ...want}; persist(); closeSheet(); return toast("Balances saved"); }
   let n = 0;
   for (const k of ["checking","savings","card"]){
     const d = Math.round((want[k] - b[k]) * 100) / 100;
@@ -798,7 +909,8 @@ document.addEventListener("click", e => {
   if (d.open === "match") return openMatch();
   if ("close" in d){ EDIT = null; return closeSheet(); }
   if (d.log) return logEvent(d.log);
-  if (d.raise){ S().autoSave = +d.raise; persist(); render(); return toast(`Auto save is now ${money(+d.raise)} a paycheck`); }
+  if (d.h){ PLAN.h = +d.h; return render(); }
+  if (d.raise){ PLAN.more = 0; S().autoSave = +d.raise; persist(); render(); return toast(`Auto save is now ${money(+d.raise)} a paycheck`); }
   if (d.month){ const m = new Date(spendMonth.y, spendMonth.m + +d.month, 1); spendMonth = {y: m.getFullYear(), m: m.getMonth()}; return render(); }
   if (d.deltx){
     if (pendingDel !== d.deltx){ pendingDel = d.deltx; return render(); }
@@ -830,11 +942,13 @@ document.addEventListener("click", e => {
   if (el.id === "importBtn") return $("#importFile").click();
 });
 document.addEventListener("input", e => {
+  if (e.target.id === "pCut" || e.target.id === "pMore"){ PLAN[e.target.id === "pCut" ? "cut" : "more"] = +e.target.value; updatePlan(); }
   if (e.target.id === "fAmt"){ sizeAmt(); const a = num(e.target.value); $("#fGo").textContent = a > 0 ? "Log " + money(a, true) : "Log it"; }
 });
 document.addEventListener("change", e => {
   const t = e.target;
   if (t.id === "fAuto") F.auto = t.checked;
+  if (t.id === "pSpend"){ PLAN.spend = t.checked; updatePlan(); }
   if (t.id === "eFreq" || t.id === "eCard") syncEditor();
   if (t.id === "importFile" && t.files[0]){ importData(t.files[0]); t.value = ""; }
   if (t.dataset.bud){ const c = cats().find(x => x.id === t.dataset.bud); if (c){ c.budget = num(t.value); persist(); t.value = c.budget ? money(c.budget) : ""; toast(`${c.label} budget ${c.budget ? "set to " + money(c.budget) : "removed"}`); } }
