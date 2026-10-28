@@ -158,6 +158,9 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
+.swipe{position:relative;overflow:hidden;touch-action:pan-y}
+.swipe-del{position:absolute;z-index:2;top:1px;right:0;bottom:0;width:88px;border:0;border-radius:12px 0 0 12px;background:var(--bad);color:#fff;font:inherit;font-size:14px;font-weight:600;transform:translateX(100%);transition:transform .2s ease}
+.swipe.open .swipe-del{transform:none}
 .bc{gap:14px}
 .bc-main{display:flex;flex-direction:column;gap:6px;border:0;background:none;padding:0;text-align:left;color:inherit;font:inherit}
 .bc-big{font-size:clamp(40px,12vw,48px);font-weight:300;letter-spacing:-.035em;line-height:1}
@@ -300,7 +303,7 @@ try { navigator.storage && navigator.storage.persist && navigator.storage.persis
 const S = () => DATA.settings;
 const TX = () => DATA.tx;
 
-const APP_BUILD = "money-v19"; // keep equal to VERSION in sw.js
+const APP_BUILD = "money-v20"; // keep equal to VERSION in sw.js
 /* ================= helpers ================= */
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -1252,6 +1255,39 @@ function scrub(e){
 }
 document.addEventListener("pointerdown", e => { if (e.target.id === "pHit"){ try { e.target.setPointerCapture(e.pointerId); } catch(_){} scrub(e); } });
 document.addEventListener("pointermove", scrub);
+// Swipe a budget row left to slide Delete in over the amount; vertical scrolling still works (touch-action: pan-y)
+let SW = null;
+document.addEventListener("pointerdown", e => {
+  const row = e.target.closest?.(".swipe");
+  $$(".swipe.open").forEach(x => { if (x !== row) x.classList.remove("open"); });
+  if (!row || e.target.closest(".swipe-del") || e.target.closest(".bud-in")) return;
+  SW = {row, x: e.clientX, y: e.clientY, base: row.classList.contains("open") ? -88 : 0, dx: 0, moving: false};
+});
+document.addEventListener("pointermove", e => {
+  if (!SW) return;
+  const dx = e.clientX - SW.x, dy = e.clientY - SW.y;
+  if (!SW.moving){ if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) SW.moving = true; else { if (Math.abs(dy) > 8) SW = null; return; } }
+  SW.dx = dx; const del = SW.row.querySelector(".swipe-del");
+  del.style.transition = "none"; del.style.transform = `translateX(${88 + Math.max(-88, Math.min(0, SW.base + dx))}px)`;
+});
+const swipeEnd = () => {
+  if (!SW) return; const {row, moving, base, dx} = SW; SW = null;
+  const del = row.querySelector(".swipe-del"); del.style.transition = ""; del.style.transform = "";
+  if (moving){ row.classList.toggle("open", base + dx < -44); row.dataset.swiped = "1"; setTimeout(() => delete row.dataset.swiped, 80); }
+};
+document.addEventListener("pointerup", swipeEnd); document.addEventListener("pointercancel", swipeEnd);
+// a swipe isn't a tap: don't open the row; tapping an open row just closes it
+document.addEventListener("click", e => {
+  const row = e.target.closest?.(".swipe"); if (!row || !e.target.closest("summary")) return;
+  if (row.dataset.swiped || row.classList.contains("open")){ e.preventDefault(); e.stopPropagation(); if (!row.dataset.swiped) row.classList.remove("open"); }
+}, true);
+function undoBar(msg, undo){
+  $("#undoBar")?.remove();
+  const bar = document.createElement("div"); bar.id = "undoBar"; bar.className = "updbar"; bar.setAttribute("role", "status");
+  bar.innerHTML = `<span>${esc(msg)}</span><button class="link" style="color:inherit;font-weight:700;padding:0">Undo</button>`;
+  bar.querySelector("button").onclick = () => { undo(); bar.remove(); toast("Restored"); };
+  document.body.appendChild(bar); setTimeout(() => bar.remove(), 6000);
+}
 document.addEventListener("toggle", e => { const id = e.target.dataset?.budrow; if (id) e.target.open ? BUD_OPEN.add(id) : BUD_OPEN.delete(id); }, true);
 document.addEventListener("pointerdown", e => { if (e.target.closest?.("#chatMic")) micStart(e); });
 for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, () => micStop());
@@ -1297,7 +1333,7 @@ function spendingView(){
   const rank = {bad: 0, warn: 1, good: 2, "": 3};
   const row = x => {
     const {c, sp, bu, ex, st} = x, left = bu - sp, txs = monthTx.filter(t => t.type === "expense" && t.category === c.id).reverse();
-    return `<details class="bud" data-budrow="${esc(c.id)}" ${BUD_OPEN.has(c.id) ? "open" : ""}><summary>
+    return `<div class="swipe"><button class="swipe-del" data-swdel="${esc(c.id)}" tabindex="-1" aria-label="Delete ${esc(c.label)}">Delete</button><details class="bud" data-budrow="${esc(c.id)}" ${BUD_OPEN.has(c.id) ? "open" : ""}><summary>
       <span class="mt"><b>${st && st !== "good" ? BUD_ICON[st] + " " : ""}${esc(c.label)}</b><span class="small ${st === "bad" ? "neg" : ""}">${bu ? (left >= 0 ? `${money(left)} left of ${money(bu)}` : `${money(-left)} over ${money(bu)}`) : sp ? "No budget set" : "Tap to set a budget"}</span></span>
       <span class="mn">${money(sp)}</span>${ICON.chev}</summary>
       ${bu ? `<div style="padding:0 0 10px">${barHTML(sp, bu, isNow ? ex : null)}</div>` : ""}
@@ -1305,7 +1341,7 @@ function spendingView(){
         <button class="link" data-edit="cat:${esc(c.id)}" style="padding:2px 14px 10px;align-self:flex-start">Rename or delete</button>
         ${txs.length ? `<div class="list" style="padding:0 14px">${txs.map(t => `<div class="ev" style="min-height:44px"><span class="n"><span style="font-size:14px">${esc(t.note || c.label)}</span><span class="small">${fmtShort(pd(t.date))} · ${ML[t.method] || ""}</span></span><span class="a">${money(+t.amount, true)}</span></div>`).join("")}</div>`
           : `<div class="small" style="padding:4px 14px 12px">Nothing spent here ${isNow ? "yet this month" : "this month"}.</div>`}</div>
-    </details>`;
+    </details></div>`;
   };
   const group = g => all.filter(x => (x.c.group === "needs" ? "needs" : "wants") === g).sort((a, b) => rank[a.st] - rank[b.st] || b.sp - a.sp).map(row).join("");
   const orphSum = Object.keys(by).filter(id => !cats().some(c => c.id === id)).reduce((s, id) => s + by[id], 0);
@@ -1329,7 +1365,8 @@ function spendingView(){
     <span class="group-label" style="padding-top:12px">NEEDS</span>${group("needs") || `<div class="small" style="padding:8px 0">No needs categories.</div>`}
     <span class="group-label" style="padding-top:16px">WANTS</span>${group("wants") || `<div class="small" style="padding:8px 0">No wants categories.</div>`}
     ${orphan ? `<span class="group-label" style="padding-top:16px">OTHER</span>${orphan}` : ""}
-    <button class="link" data-edit="cat:new" style="align-self:flex-start;padding:14px 0">+ Add a category</button>
+    <button class="link" data-edit="cat:new" style="align-self:flex-start;padding:14px 0 4px">+ Add a category</button>
+    <span class="small" style="padding-bottom:12px">Swipe a category left to delete it.</span>
   </section>
   <section class="sec" style="gap:0"><span class="sec-title" style="padding-bottom:4px">Everything this month</span>
     ${byDay.map(g => `<div class="small" style="padding:14px 0 4px;font-weight:500">${fmtDay(pd(g.date))}</div><div class="list">${g.items.map(x => {
@@ -1624,6 +1661,11 @@ document.addEventListener("click", e => {
   if (d.open === "match") return openMatch();
   if ("close" in d){ EDIT = null; return closeSheet(); }
   if (d.log) return logEvent(d.log);
+  if (d.swdel){
+    const list = cats(), i = list.findIndex(c => c.id === d.swdel); if (i < 0) return;
+    const [gone] = list.splice(i, 1); S().categories = list; BUD_OPEN.delete(gone.id); persist(); render();
+    return undoBar(`${gone.label} deleted`, () => { const l = cats(); l.splice(Math.min(i, l.length), 0, gone); S().categories = l; persist(); render(); });
+  }
   if (d.cardnew) return openCardEditor(null);
   if (d.cardedit) return openCardEditor(d.cardedit);
   if (el.id === "cSave") return saveCard();
