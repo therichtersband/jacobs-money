@@ -158,9 +158,10 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
-.cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
-.cc-chip{font-size:12px;padding:5px 10px;border-radius:999px;background:var(--soft);color:var(--muted)}
-.cc-chip b{color:var(--ink);font-weight:600}
+.updbar{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);z-index:25;display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;border-radius:14px;padding:13px 16px;background:var(--accent);color:var(--accent-ink);font:inherit;font-size:14px;max-width:448px;margin:0 auto;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.cc-chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;margin-top:6px}
+.cc-chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px 16px;border:0;border-radius:16px;background:var(--surface);color:var(--muted);font:inherit;font-size:13px;text-align:left}
+.cc-chip b{color:var(--ink);font-size:26px;font-weight:400;letter-spacing:-.02em;line-height:1.15}
 .ccard{display:flex;align-items:center;gap:12px;border:0;border-top:1px solid var(--line);background:none;padding:12px 0 8px;width:100%;text-align:left;color:inherit;font:inherit}
 .ccard .chev{width:16px;height:16px;color:var(--tick);flex:none}
 .cc-v{display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
@@ -289,6 +290,7 @@ try { navigator.storage && navigator.storage.persist && navigator.storage.persis
 const S = () => DATA.settings;
 const TX = () => DATA.tx;
 
+const APP_BUILD = "money-v18"; // keep equal to VERSION in sw.js
 /* ================= helpers ================= */
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -466,7 +468,7 @@ function project(days, autoOverride, spendMonthly, withPockets){
   return ev;
 }
 const cats = () => S().categories || [];
-const catOf = id => cats().find(c => c.id === id) || {id, label: id === "pocket" ? "Pockets" : id || "Other", group: "wants", budget: 0};
+const catOf = id => cats().find(c => c.id === id) || {id, label: id === "pocket" ? "Pockets" : "Other", group: "wants", budget: 0};
 function spendIn(y, m){
   const by = {};
   for (const x of TX()){
@@ -518,10 +520,15 @@ function homeView(){
   const end = after ? addDays(after.d, -1) : next ? addDays(next.d, 31) : addDays(t, 14);
   const cushion = +S().cushion || 0;
   // a card with no payment date: hold its balance now
-  const owed = cardsList().length ? cardsList().filter(c => !c.due).reduce((s, c) => s + Math.max(0, cb[c.id] || 0), 0) : (S().bills || []).some(x => x.amount === "card") ? 0 : Math.max(0, b.card);
-  let lowPt = b.checking, lowAt = null;
-  for (const x of ev){ if (x.d > end) break; if (x.chk < lowPt){ lowPt = x.chk; lowAt = x; } }
-  const safe = lowPt - owed - cushion;
+  const owed = cardsList().length ? cardsList().filter(c => !c.due && !(+c.limit > 0)).reduce((s, c) => s + Math.max(0, cb[c.id] || 0), 0) : (S().bills || []).some(x => x.amount === "card") ? 0 : Math.max(0, b.card);
+  // Bank part: lowest checking before the pay period ends. Payments on cards with a limit are left out here,
+  // since what's owed on them already comes off their available credit (added below), so nothing counts twice.
+  const limited = id => +(cardsList().find(c => c.id === id)?.limit || 0) > 0;
+  let run = b.checking, lowPt = b.checking, lowAt = null;
+  for (const x of ev){ if (x.d > end) break; if (x.kind === "card" && limited(x.cardId)) continue; run += x.amt; if (run < lowPt){ lowPt = run; lowAt = x; } }
+  const bankSafe = lowPt - owed - cushion;
+  const credit = cardsList().filter(c => +c.limit > 0).reduce((s, c) => s + Math.max(0, c.limit - (cb[c.id] || 0)), 0);
+  const safe = bankSafe + credit;
   const days = dim(t.getFullYear(), t.getMonth());
   const by = spendIn(t.getFullYear(), t.getMonth());
   const grp = g => {
@@ -548,7 +555,7 @@ function homeView(){
   const daysTo = next ? Math.round((next.d - t) / 864e5) : null;
   const pill = next ? (daysTo <= 0 ? "Payday today" : daysTo === 1 ? "Payday tomorrow" : `Payday in ${daysTo} days`) : "Next 2 weeks";
   const held = [lowAt && `${money(b.checking - lowPt)} for bills through ${fmtShort(lowAt.d)}`, owed > 0.5 && `${money(owed)} card balance`, cushion && `${money(cushion)} cushion`].filter(Boolean);
-  const sub = safe < 0 ? `Checking runs short${lowAt ? ` around ${fmtShort(lowAt.d)} (${lowAt.name})` : ""}. Hold off on spending or move ${money(-safe)} from savings.`
+  const sub = bankSafe < 0 ? `Checking runs short${lowAt ? ` around ${fmtShort(lowAt.d)} (${lowAt.name})` : ""}. Hold off on spending or move ${money(-bankSafe)} from savings.`
     : `${held.length ? `After holding back ${held.join(", ").replace(/, ([^,]*)$/, " and $1")}. ` : ""}Everything due through ${fmtShort(end)} is covered.`;
   const R = 27, C = 2 * Math.PI * R;
   return `
@@ -558,7 +565,8 @@ function homeView(){
     <div class="hero-top"><span class="label">Safe to spend</span><span class="pill ${safe < 0 ? "bad" : ""}">${pill}</span></div>
     <span class="big ${safe < 0 ? "neg" : ""}">${bigMoney(safe)}</span>
     <span class="sub">${sub}</span>
-    ${cardsList().some(c => +c.limit) ? `<div class="cc-chips">${cardsList().filter(c => +c.limit).map(c => `<span class="cc-chip">💳 ${esc(c.name)} <b>${money(Math.max(0, c.limit - (cb[c.id] || 0)))}</b> available</span>`).join("")}</div>` : ""}
+    ${cardsList().length ? `<div class="cc-chips"><span class="cc-chip"><span>🏦 Bank</span><b class="${bankSafe < 0 ? "neg" : ""}">${money(bankSafe)}</b><span>safe to spend</span></span>${cardsList().map(c => { const o = cb[c.id] || 0, lim = +c.limit || 0;
+      return `<button class="cc-chip" data-cardedit="${esc(c.id)}"><span>💳 ${esc(c.name)}</span><b>${money(lim ? Math.max(0, lim - o) : o)}</b><span>${lim ? "available" : "owed"}</span></button>`; }).join("")}</div>` : ""}
   </section>
   ${!TX().length && !b.checking && !b.savings && !b.card ? `<button class="outline" data-open="match" style="background:none;text-align:left;width:100%;align-items:center;color:inherit">
     <span style="flex:1;display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:600">Add your balances to start</span><span class="small" style="font-size:13px">Type in what checking and savings have right now.</span></span><span class="mini" style="padding:9px 12px;font-size:13px">Add</span></button>` : ""}
@@ -1277,12 +1285,14 @@ function spendingView(){
       <span class="mn">${money(sp)}</span>${ICON.chev}</summary>
       ${bu ? `<div style="padding:0 0 10px">${barHTML(sp, bu, isNow ? ex : null)}</div>` : ""}
       <div class="bud-in"><div class="item" style="padding:10px 14px;min-height:0"><label class="t" for="bud_${esc(c.id)}"><b style="font-size:14px">Monthly budget</b></label><input class="inl" id="bud_${esc(c.id)}" data-bud="${esc(c.id)}" inputmode="decimal" placeholder="Set" value="${bu ? money(bu) : ""}"></div>
+        <button class="link" data-edit="cat:${esc(c.id)}" style="padding:2px 14px 10px;align-self:flex-start">Rename or delete</button>
         ${txs.length ? `<div class="list" style="padding:0 14px">${txs.map(t => `<div class="ev" style="min-height:44px"><span class="n"><span style="font-size:14px">${esc(t.note || c.label)}</span><span class="small">${fmtShort(pd(t.date))} · ${ML[t.method] || ""}</span></span><span class="a">${money(+t.amount, true)}</span></div>`).join("")}</div>`
           : `<div class="small" style="padding:4px 14px 12px">Nothing spent here ${isNow ? "yet this month" : "this month"}.</div>`}</div>
     </details>`;
   };
   const group = g => all.filter(x => (x.c.group === "needs" ? "needs" : "wants") === g).sort((a, b) => rank[a.st] - rank[b.st] || b.sp - a.sp).map(row).join("");
-  const orphan = Object.keys(by).filter(id => !cats().some(c => c.id === id)).map(id => `<div class="ev"><span class="n"><span>${esc(catOf(id).label)}</span></span><span class="a">${money(by[id])}</span></div>`).join("");
+  const orphSum = Object.keys(by).filter(id => !cats().some(c => c.id === id)).reduce((s, id) => s + by[id], 0);
+  const orphan = orphSum ? `<div class="ev"><span class="n"><span>Other</span><span class="small">From categories you deleted</span></span><span class="a">${money(orphSum)}</span></div>` : "";
   const st = !totBud ? "" : over.length ? "bad" : near.length ? "warn" : "good";
   const headline = !totBud ? "" : over.length ? `${over.map(x => x.c.label).join(", ")} ${over.length === 1 ? "is" : "are"} over budget` : near.length ? `${near.map(x => x.c.label).join(", ")} ${near.length === 1 ? "is" : "are"} close to the limit` : "Every budget is on track";
   // activity (everything logged this month, newest first)
@@ -1355,6 +1365,8 @@ function settingsView(){
       <button class="item" id="exportBtn"><span class="t"><b>Export backup</b><span class="small">Saves a file you can keep in iCloud Drive</span></span>${ICON.chev}</button>
       <button class="item" id="importBtn"><span class="t"><b>Restore from backup</b><span class="small">Replaces what's on this phone</span></span>${ICON.chev}</button>
     </div>
+    <button class="ghost" id="chkUpd" style="margin-top:4px">Check for update</button>
+    <span class="small" style="padding:0 4px;text-align:center">Version ${APP_BUILD}</span>
     <span class="small" style="padding:0 4px">Your data lives only on this phone. Export now and then so you never lose it.</span></div>`;
 }
 
@@ -1492,7 +1504,8 @@ function drawEditor(){
     const g = EDIT.group || it?.group || "wants"; EDIT.group = g;
     body = `${fld("eName","Name",it?.label || "","text",'placeholder="Coffee"')}
       <div class="field"><span class="flabel">Type</span><div class="seg"><button data-egroup="needs" aria-pressed="${g === "needs"}">Need</button><button data-egroup="wants" aria-pressed="${g === "wants"}">Want</button></div></div>
-      ${fld("eAmt","Monthly budget",it && +it.budget ? money(+it.budget) : "","text",'inputmode="decimal" placeholder="None"')}`;
+      ${fld("eAmt","Monthly budget",it && +it.budget ? money(+it.budget) : "","text",'inputmode="decimal" placeholder="None"')}
+      ${isNew ? "" : `<span class="small">Deleting a category keeps past purchases. They show under Other.</span>`}`;
   }
   openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">${title}</span><span style="width:32px"></span></div>
     ${body}<div class="spacer"></div>
@@ -1657,6 +1670,13 @@ document.addEventListener("click", e => {
   if (el.id === "eDel") return deleteEditor();
   if (el.id === "mGo") return saveMatch();
   if (el.id === "exportBtn") return exportData();
+  if (el.id === "chkUpd"){
+    el.textContent = "Checking…";
+    const done = updateNow;
+    if (!("serviceWorker" in navigator)) return done();
+    navigator.serviceWorker.getRegistration().then(r => r ? r.update().then(() => r.waiting ? r.waiting.postMessage("skip") : null) : null).catch(() => {}).finally(() => setTimeout(done, 800));
+    return;
+  }
   if (el.id === "importBtn") return $("#importFile").click();
 });
 document.addEventListener("input", e => {
@@ -1698,6 +1718,21 @@ render();
 // A Home Screen app resumes without reloading, so check for a new version each time it comes back.
 // When one takes over, reload, but never while a sheet (an entry in progress) is open.
 let RELOAD = false;
+// Belt and braces: compare this page's build with the one online; offer a one-tap update if they differ.
+function updateNow(){ try { sessionStorage.setItem(KEY + ":updated", "1"); } catch(e){} location.reload(); }
+function checkVersion(){
+  if (!/^https?:$/.test(location.protocol)) return;
+  fetch("sw.js?v=" + Date.now(), {cache: "no-store"}).then(r => r.ok ? r.text() : "").then(t => {
+    const m = t.match(/VERSION = "([^"]+)"/);
+    if (m && m[1] !== APP_BUILD && !$("#updBar")){
+      const bar = document.createElement("button"); bar.id = "updBar"; bar.className = "updbar";
+      bar.innerHTML = "<span>A new version is ready</span><b>Update</b>"; bar.onclick = () => $("#sheet").hidden ? updateNow() : toast("Finish what you're entering first");
+      document.body.appendChild(bar);
+    }
+  }).catch(() => {});
+}
+checkVersion();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkVersion(); });
 try { if (sessionStorage.getItem(KEY + ":updated")){ sessionStorage.removeItem(KEY + ":updated"); toast("Updated to the newest version"); } } catch(e){}
 if ("serviceWorker" in navigator && location.protocol === "https:"){
   const hadController = !!navigator.serviceWorker.controller;
