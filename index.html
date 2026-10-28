@@ -158,6 +158,18 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
+.chat{flex:1;display:flex;flex-direction:column;gap:10px;min-height:40vh}
+.bub{max-width:88%;padding:11px 14px;border-radius:18px;font-size:15px;line-height:1.45;overflow-wrap:anywhere}
+.bub.bot{align-self:flex-start;background:var(--surface);border-bottom-left-radius:6px}
+.bub.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:6px}
+.chat-btns{display:flex;gap:8px;margin-top:10px}
+.chat-btns .mini{padding:9px 14px;font-size:14px}
+.chat-in{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;background:var(--ground);padding:8px 0 4px}
+.chat-in input{flex:1;min-width:0;font-size:16px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:12px 16px;color:var(--ink)}
+.send,.mic{width:44px;height:44px;border-radius:22px;border:0;display:grid;place-items:center;flex:none;background:var(--btn);color:var(--btn-ink)}
+.mic{background:var(--soft);color:var(--ink);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.mic.on{background:var(--bad);color:#fff}
+.send svg,.mic svg{width:20px;height:20px}
 .pk{text-align:left;width:100%;border:0;color:inherit;font:inherit;gap:10px}
 .pk-row{display:flex;align-items:center;gap:12px}
 .pk-emo{width:44px;height:44px;border-radius:12px;background:var(--soft);display:grid;place-items:center;font-size:22px;flex:none}
@@ -282,11 +294,14 @@ const ICON = {
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 3.5V17A2.5 2.5 0 0 1 4 14.5z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>'
 };
 
 /* ================= schedules ================= */
-function ruleDates(it, s, e){
+function baseDates(it, s, e){
   const S0 = it.start && pd(it.start) > s ? pd(it.start) : s;
   const E0 = it.end && pd(it.end) < e ? pd(it.end) : e;
   const out = [];
@@ -313,6 +328,19 @@ function ruleDates(it, s, e){
   }
   return out.sort((a, b) => a - b);
 }
+// Scheduled dates after one-off moves/skips (it.moves, keyed by the original date) and the weekend rule (it.weekend)
+function occurrences(it, s, e){
+  if (!it.moves && !it.weekend) return baseDates(it, s, e).map(d => ({d, orig: d}));
+  const out = [];
+  for (const o of baseDates(it, addDays(s, -10), addDays(e, 10))){
+    const mv = it.moves && it.moves[iso(o)]; if (mv === "skip") continue;
+    let d = mv ? pd(mv) : o;
+    if (!mv && it.weekend && (d.getDay() === 0 || d.getDay() === 6)) d = it.weekend === "before" ? addDays(d, d.getDay() === 6 ? -1 : -2) : addDays(d, d.getDay() === 6 ? 2 : 1);
+    if (d >= s && d <= e) out.push({d, orig: o});
+  }
+  return out.sort((a, b) => a.d - b.d);
+}
+function ruleDates(it, s, e){ return occurrences(it, s, e).map(o => o.d); }
 function freqOf(it){
   if (it.rule === "once") return "once";
   if (it.rule === "monthly") return (it.days || []).length > 1 ? "twice" : "monthly";
@@ -367,16 +395,16 @@ function project(days, autoOverride, spendMonthly, withPockets){
   const e = addDays(t0, days), bal = balances(), ev = [];
   const auto = autoOverride != null ? autoOverride : (+S().autoSave || 0);
   for (const inc of S().income || []){
-    for (const d of ruleDates(inc, s, e)){
-      const ref = `${inc.id}@${iso(d)}`; if (done(ref)) continue;
+    for (const {d, orig} of occurrences(inc, s, e)){
+      const ref = `${inc.id}@${iso(orig)}`; if (done(ref)) continue;
       ev.push({d, name: inc.name, amt: +inc.amount, kind: "in", ord: 0, ref, item: inc});
       if (inc.autoSave && auto > 0) ev.push({d, name: "To savings", amt: -auto, kind: "save", ord: 1, ref: ref + ":save"});
     }
   }
   for (const b of S().bills || []){
     let first = true;
-    for (const d of ruleDates(b, s, e)){
-      const ref = `${b.id}@${iso(d)}`;
+    for (const {d, orig} of occurrences(b, s, e)){
+      const ref = `${b.id}@${iso(orig)}`;
       let amt = b.amount;
       if (amt === "card") amt = first && bal.card > 0 ? bal.card : (+b.fallback || 0);
       first = false;
@@ -484,7 +512,7 @@ function homeView(){
   const R = 27, C = 2 * Math.PI * R;
   return `
   <div class="topbar"><span class="muted" style="font-size:14px;font-weight:500">${t.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</span>
-    <button class="iconbtn" data-open="settings" aria-label="Settings" style="margin-right:-10px">${ICON.sliders}</button></div>
+    <span style="display:flex;margin-right:-10px"><button class="iconbtn" data-chat="1" aria-label="Assistant">${ICON.chat}</button><button class="iconbtn" data-open="settings" aria-label="Settings">${ICON.sliders}</button></span></div>
   <section class="hero">
     <div class="hero-top"><span class="label">Safe to spend</span><span class="pill ${safe < 0 ? "bad" : ""}">${pill}</span></div>
     <span class="big ${safe < 0 ? "neg" : ""}">${bigMoney(safe)}</span>
@@ -531,6 +559,200 @@ function evRow(x, showAfter){
     ${showAfter ? `<span class="after ${x.chk < (+S().cushion || 0) ? "neg" : ""}">${money(x.chk)}</span>` : ""}</div>`;
 }
 
+/* ================= assistant ================= */
+// On-phone helper: turns a plain sentence into a change (move a payday, skip a bill, new amounts, one-time
+// costs, logging). It always asks before changing anything and can undo. Pattern matching only, no server.
+const MON3 = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const A_EXAMPLES = ["I'm getting paid on the 28th", "Skip the gym next month", "Rent is now $1,250", "Bonus of $500 on Nov 20", "Spent $24 on lunch", "Checking is $850"];
+let CHAT = null;
+// Every date mentioned, with where it sits in the sentence
+function aDates(s){
+  const t = today(), out = [], yr = (mo, d) => { let x = new Date(t.getFullYear(), mo, d); if (x < addDays(t, -31)) x = new Date(t.getFullYear() + 1, mo, d); return x; };
+  const add = (i, d) => { if (d && !isNaN(d)) out.push({i, d}); };
+  let m; const re = (r, f) => { r.lastIndex = 0; while ((m = r.exec(s))) add(m.index, f(m)); };
+  re(/\btoday\b/g, () => t); re(/\btomorrow\b/g, () => addDays(t, 1));
+  re(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g, m => m[3] ? new Date(+m[3] < 100 ? 2000 + +m[3] : +m[3], m[1] - 1, +m[2]) : yr(m[1] - 1, +m[2]));
+  re(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b/g, m => yr(MON3.indexOf(m[1]), +m[2]));
+  re(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/g, m => yr(MON3.indexOf(m[2]), +m[1]));
+  re(/\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b|\bthe\s+(\d{1,2})\b/g, m => {
+    const n = +(m[1] || m[2]); if (n < 1 || n > 31) return null;
+    if (out.some(o => Math.abs(o.i - m.index) < 12)) return null; // already read as part of a month date
+    let x = new Date(t.getFullYear(), t.getMonth(), n); if (x < addDays(t, -3)) x = new Date(t.getFullYear(), t.getMonth() + 1, n); return x; });
+  re(/\b(sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?|fri(?:day)?|sat(?:urday)?)\b/g, m => {
+    const i = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(m[1].slice(0, 3)); let d = addDays(t, 1); while (d.getDay() !== i) d = addDays(d, 1); return d; });
+  return out.sort((a, b) => a.i - b.i);
+}
+// The date something should move TO, and (if given) the date it moves FROM
+function aTarget(s){
+  const ds = aDates(s); if (!ds.length) return {};
+  const before = o => s.slice(Math.max(0, o.i - 14), o.i);
+  const from = ds.find(o => /(instead of|from|not|usually|normally|cause|because|since)\s*(the\s*)?$/.test(before(o)));
+  const to = ds.find(o => o !== from && /(to|on|for|by|be)\s*(the\s*)?$/.test(before(o))) || ds.find(o => o !== from);
+  return {to: to?.d, from: from?.d};
+}
+function aMonth(s){
+  const t = today(); let m = s.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/);
+  if (m){ const mo = MON3.indexOf(m[1].slice(0, 3)); let x = new Date(t.getFullYear(), mo, 15); if (x < addDays(t, -31)) x = new Date(t.getFullYear() + 1, mo, 15); return x; }
+  if (/\bnext month\b/.test(s)) return new Date(t.getFullYear(), t.getMonth() + 1, 15);
+  if (/\bthis month\b/.test(s)) return t;
+  return null;
+}
+function aAmount(s){
+  let m = s.match(/(-)?\$\s?([\d,]+(?:\.\d{1,2})?)/); if (m) return num(m[2]) * (m[1] ? -1 : 1);
+  m = s.match(/\b([\d,]+(?:\.\d{1,2})?)\s*(?:dollars|bucks|usd)\b/); if (m) return num(m[1]);
+  const clean = s.replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, " ").replace(/\b\d{1,2}(st|nd|rd|th)\b/g, " ").replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b/g, " ").replace(/\bthe\s+\d{1,2}\b/g, " ");
+  const n = (clean.match(/\b\d[\d,]*(?:\.\d{1,2})?\b/g) || []).map(num).find(v => v >= 32 && !(v >= 2024 && v <= 2040));
+  return n || null;
+}
+const A_PAYWORDS = /\b(paid|pay|paycheck|payday|salary|check|deposit|direct deposit|wages?)\b/;
+function aFind(s, prefer){
+  const items = [...(S().income || []).map(it => ({kind: "income", it})), ...(S().bills || []).map(it => ({kind: "bill", it}))];
+  const scored = items.map(o => {
+    const n = o.it.name.toLowerCase(); let sc = 0;
+    if (s.includes(n)) sc = 3;
+    else if (n.split(/[^a-z0-9]+/).some(w => w.length >= 3 && new RegExp("\\b" + w).test(s))) sc = 2;
+    else if (o.kind === "bill" && catOf(o.it.category).label.toLowerCase().split(/[^a-z]+/).some(w => w.length >= 3 && new RegExp("\\b" + w).test(s))) sc = 1.5;
+    if (o.kind === "income" && A_PAYWORDS.test(s)) sc += 1;
+    if (prefer && o.kind === prefer) sc += .5;
+    return {...o, sc};
+  }).filter(o => o.sc >= 1).sort((a, b) => b.sc - a.sc);
+  return scored[0] || null;
+}
+function aOcc(it, target, anchor){
+  const c = anchor || target, list = occurrences(it, addDays(c, -25), addDays(c, 25));
+  return list.sort((a, b) => Math.abs(a.d - c) - Math.abs(b.d - c))[0] || null;
+}
+const A_CATS = [["groceries", /grocer|trader joe|whole foods|safeway|ralphs|vons|costco|supermarket|market/], ["dining", /lunch|dinner|breakfast|brunch|coffee|restaurant|\bbar\b|drinks|takeout|take out|doordash|uber ?eats|pizza|taco|sushi|burger|cafe/],
+  ["transport", /\bgas\b|uber|lyft|parking|car wash|toll|metro|bus|train/], ["subscriptions", /netflix|spotify|hulu|subscription|apple music|youtube|prime/], ["shopping", /clothes|amazon|target|shoes|shopping|mall|shirt/],
+  ["fun", /movie|concert|show|tickets?|game|bowling/], ["band", /guitar|strings|gear|music|amp|pedal/], ["hobbies", /hobby|guitar|gear/], ["travel", /flight|hotel|airbnb|trip|vacation/], ["phone", /phone/], ["groceries", /food/]];
+function aCat(s){ for (const [id, re] of A_CATS) if (re.test(s) && cats().some(c => c.id === id)) return id; return (cats().find(c => c.id === "fun") || cats().find(c => c.group === "wants") || cats()[0] || {id: "other"}).id; }
+function aName(s, fallback){
+  const m = s.match(/\b(?:for|on)\s+(?:a\s+|an\s+|the\s+|my\s+)?([a-z][a-z' ]{2,28}?)(?=\s+(?:on|by|this|next|in|at|tomorrow|today)\b|[.,!?]|$)/);
+  const n = m && !/^(the )?\d/.test(m[1]) && !MON3.some(x => m[1].startsWith(x)) ? m[1].trim() : fallback;
+  return n.charAt(0).toUpperCase() + n.slice(1);
+}
+// Work out what a sentence means. Returns {say, ask, apply, then} or a plain reply.
+function aParse(raw){
+  const s = " " + raw.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim() + " ";
+  const amt = aAmount(s), {to, from} = aTarget(s), b = balances();
+  if (/\b(help|what can you|examples?|how does this)\b/.test(s)) return {say: `I can change things like these. Tap one to try it, or say it your own way.`, examples: true};
+  if (/^\s*undo\b/.test(s)) return CHAT.undo ? {say: "Undo the last change?", apply: () => { DATA = JSON.parse(CHAT.undo); CHAT.undo = null; }, done: "Undone. Everything is back to how it was."} : {say: "There's nothing to undo yet."};
+  // balances
+  let m = s.match(/\b(checking|savings|card|credit card)\b/);
+  if (m && amt != null && /\b(is|has|at|balance|shows?|now|=|have|got)\b/.test(s) && !/\b(spent|bought|move|transfer|put)\b/.test(s)){
+    const acct = m[1] === "credit card" ? "card" : m[1], d = Math.round((amt - b[acct]) * 100) / 100, label = acct === "card" ? "card balance owed" : acct;
+    if (Math.abs(d) < .01) return {say: `Your ${label} is already ${money(amt, true)}.`};
+    return {say: `Set your ${label} to ${money(amt, true)}? That's ${d > 0 ? "up" : "down"} ${money(Math.abs(d), true)} from what the app has.`,
+      apply: () => { TX().push({id: newId("t"), ts: Date.now(), type: "adjust", account: acct, amount: d, category: "adjust", note: "Assistant", date: iso(today())}); }, done: `Done. ${label.charAt(0).toUpperCase() + label.slice(1)} is now ${money(amt, true)}.`};
+  }
+  // skip one bill or paycheck
+  if (/\b(skip|skipping|not paying|won't pay|wont pay|no need to pay|cancel(?:led)? (?:this|for)|paused?)\b/.test(s) || /\bno (\w+) (this|next) month\b/.test(s)){
+    const f = aFind(s, "bill"); if (!f) return {say: `Which bill or paycheck should I skip? Say its name, like "skip ${(S().bills || [])[0]?.name || "rent"} next month".`};
+    const when = to || aMonth(s) || today(), o = aOcc(f.it, when); if (!o) return {say: `I couldn't find a ${f.it.name} near ${fmtShort(when)}.`};
+    return {say: `Skip ${f.it.name} on ${fmtDay(o.d)} (${money(f.kind === "bill" && f.it.amount === "card" ? +f.it.fallback || 0 : +f.it.amount)})? Only that one time.`,
+      apply: () => { (f.it.moves = f.it.moves || {})[iso(o.orig)] = "skip"; }, done: `Done. ${f.it.name} on ${fmtShort(o.d)} is skipped. The rest stay on schedule.`};
+  }
+  // payday rule for weekends
+  const weekendWords = /\b(weekend|saturday|sunday|non[- ]?(biz|business|work|bank)|not a (biz|business|work|bank)|holiday|bank day)\b/;
+  if (weekendWords.test(s) && !to && A_PAYWORDS.test(s)){
+    const f = aFind(s, "income"); if (!f || f.kind !== "income") return {say: "Which paycheck is that for?"};
+    const rule = /\b(after|monday|later|next business)\b/.test(s) ? "after" : "before";
+    return {say: `From now on, when ${f.it.name} lands on a weekend, count it on the ${rule === "before" ? "Friday before" : "Monday after"}?`,
+      apply: () => { f.it.weekend = rule; }, done: `Done. Weekend paydays for ${f.it.name} now move to the ${rule === "before" ? "Friday before" : "Monday after"}.`};
+  }
+  // move one paycheck or bill to another date
+  if (to && !/\b(spent|bought|purchased)\b/.test(s) && (A_PAYWORDS.test(s) || /\b(due|move|moved|moving|early|earlier|late|later|instead|comes?|coming|hits?|lands?|charged?|goes out|pushed)\b/.test(s))){
+    const f = aFind(s, A_PAYWORDS.test(s) && !/\bdue\b/.test(s) ? "income" : "bill");
+    // with a dollar amount and no named item, it's a new cost or income, not a move ("I need to pay $300 on Dec 4")
+    if (f && !(amt != null && f.sc < 2)){
+      const o = aOcc(f.it, to, from); if (!o) return {say: `I couldn't find a ${f.it.name} near ${fmtShort(to)}.`};
+      if (iso(o.d) === iso(to)) return {say: `${f.it.name} is already on ${fmtDay(to)}.`};
+      const wk = f.kind === "income" && !f.it.weekend && [0, 6].includes(o.orig.getDay()) && (weekendWords.test(s) || to < o.orig);
+      return {say: `Move ${f.it.name} from ${fmtDay(o.d)} to ${fmtDay(to)}? Just this once; the rest stay on schedule.`,
+        apply: () => { (f.it.moves = f.it.moves || {})[iso(o.orig)] = iso(to); }, done: `Done. ${f.it.name} now lands ${fmtDay(to)}. Your safe to spend and Plan are updated.`,
+        then: wk ? {say: `${fmtShort(o.orig)} is a ${WD[o.orig.getDay()]}. Want every ${f.it.name} that falls on a weekend to count on the Friday before?`, apply: () => { f.it.weekend = "before"; }, done: "Done. Weekend paydays now count on the Friday before."} : null};
+    }
+  }
+  // new amount going forward
+  if (amt != null && /\b(is now|now|changed? to|went up|goes up|going up|raised?|increased?|lowered?|went down|dropped|new amount|new rate|costs?)\b/.test(s) && !/\b(spent|bought)\b/.test(s)){
+    const f = aFind(s); if (f){
+      const card = f.kind === "bill" && f.it.amount === "card", cur = card ? +f.it.fallback || 0 : +f.it.amount;
+      return {say: `Change ${f.it.name} from ${money(cur)} to ${money(Math.abs(amt))}${f.kind === "income" ? " each paycheck" : " each time"}, from now on?`,
+        apply: () => { if (card) f.it.fallback = Math.abs(amt); else f.it.amount = Math.abs(amt); }, done: `Done. ${f.it.name} is ${money(Math.abs(amt))} from now on.`};
+    }
+  }
+  // spending that already happened
+  if (amt && (/\b(spent|bought|purchased)\b/.test(s) || /\bpaid \$/.test(s) && !/\b(get|getting|got|be|being) paid\b/.test(s))){
+    const cat = aCat(s), meth = /\b(debit|checking)\b/.test(s) ? "checking" : /\bcash\b/.test(s) ? "cash" : /\bsavings\b/.test(s) ? "savings" : "card";
+    const date = to && to <= today() ? to : /\byesterday\b/.test(s) ? addDays(today(), -1) : today(), note = aName(s, "");
+    return {say: `Log ${money(amt, true)} on ${catOf(cat).label}${note ? ` (${note})` : ""}, paid with ${{card: "card", checking: "debit", cash: "cash", savings: "savings"}[meth]}, ${fmtDay(date)}?`,
+      apply: () => { TX().push({id: newId("t"), ts: Date.now(), type: "expense", amount: amt, category: cat, method: meth, note, date: iso(date)}); TX().sort((a, c) => a.date < c.date ? -1 : a.date > c.date ? 1 : (a.ts || 0) - (c.ts || 0)); },
+      done: `Logged ${money(amt, true)}.`};
+  }
+  // one-time money coming in
+  if (amt && /\b(bonus|extra|refund|tax return|gift|reimburse\w*|side (?:gig|job)|tips?|commission|getting|receive|receiving|owed me|paying me|pays me|venmo|zelle)\b/.test(s)){
+    const date = to || today(), name = /\bbonus\b/.test(s) ? "Bonus" : /\brefund|tax return\b/.test(s) ? "Refund" : /\bgift\b/.test(s) ? "Gift" : /\btips?\b/.test(s) ? "Tips" : aName(s, "Extra money");
+    return {say: `Add ${money(amt, true)} coming in on ${fmtDay(date)} as "${name}"?`,
+      apply: () => { (S().income = S().income || []).push({id: newId("i"), name, amount: amt, rule: "once", date: iso(date)}); }, done: `Added. ${name} shows up in Coming up and your Plan.`};
+  }
+  // one-time cost ahead
+  if (amt && (to || /\b(spend|spending|buy|buying|pay|paying|bill|cost|tickets?|trip|due|owe|fee|need)\b/.test(s))){
+    const date = to || today(), name = aName(s, "One-time cost"), cat = aCat(s);
+    return {say: `Add a one-time cost of ${money(amt, true)} for "${name}" on ${fmtDay(date)}?`,
+      apply: () => { (S().bills = S().bills || []).push({id: newId("b"), name, amount: amt, rule: "once", date: iso(date), category: cat}); }, done: `Added. "${name}" is in Coming up and your Plan.`};
+  }
+  return {say: `I didn't catch that. Try one of these, or say what changed with an amount or a date.`, examples: true};
+}
+function aSay(who, html){ CHAT.msgs.push({who, html}); }
+function aSend(text){
+  text = (text || "").trim(); if (!text) return;
+  aSay("me", esc(text)); CHAT.pending = null;
+  const r = aParse(text);
+  if (r.apply){ CHAT.pending = r; aSay("bot", `${esc(r.say)}<div class="chat-btns"><button class="mini" data-aok="1">Yes, do it</button><button class="mini" data-ano="1">No</button></div>`); }
+  else aSay("bot", esc(r.say) + (r.examples ? `<div class="chips" style="margin-top:8px">${A_EXAMPLES.map(x => `<button class="chip" data-aex="${esc(x)}">${esc(x)}</button>`).join("")}</div>` : ""));
+  drawChat();
+}
+function aConfirm(yes){
+  const r = CHAT.pending; CHAT.pending = null; if (!r) return;
+  $$("#chatLog .chat-btns").forEach(x => x.remove()); CHAT.msgs.forEach(m => m.html = m.html.replace(/<div class="chat-btns">[\s\S]*?<\/div>/, ""));
+  if (!yes){ aSay("bot", "Okay, nothing changed."); return drawChat(); }
+  const snap = JSON.stringify(DATA); r.apply();
+  if (!persist()){ DATA = JSON.parse(snap); aSay("bot", "I couldn't save that on this phone. Nothing changed."); return drawChat(); }
+  if (r.done !== "Undone. Everything is back to how it was.") CHAT.undo = snap;
+  aSay("bot", `${esc(r.done)}${CHAT.undo ? ` <button class="link" data-aundo="1" style="padding:0 0 0 4px">Undo</button>` : ""}`);
+  if (r.then){ CHAT.pending = r.then; aSay("bot", `${esc(r.then.say)}<div class="chat-btns"><button class="mini" data-aok="1">Yes</button><button class="mini" data-ano="1">No thanks</button></div>`); }
+  drawChat();
+}
+function openChat(){
+  if (!CHAT) CHAT = {msgs: [], pending: null, undo: null};
+  if (!CHAT.msgs.length) aSay("bot", `Tell me what changed and I'll update your budget. I'll always ask before changing anything.<div class="chips" style="margin-top:8px">${A_EXAMPLES.map(x => `<button class="chip" data-aex="${esc(x)}">${esc(x)}</button>`).join("")}</div>`);
+  drawChat(true);
+}
+function drawChat(focus){
+  const draft = $("#chatText")?.value || "";
+  openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">Assistant</span><span style="width:32px"></span></div>
+    <div class="chat" id="chatLog" aria-live="polite">${CHAT.msgs.map(m => `<div class="bub ${m.who}">${m.html}</div>`).join("")}</div>
+    <div class="chat-in">${SR ? `<button class="mic" id="chatMic" aria-label="Hold to talk">${ICON.mic}</button>` : ""}
+      <input id="chatText" placeholder="${SR ? "Type or hold the mic" : "Tell me what changed"}" autocomplete="off" enterkeyhint="send" value="${esc(draft)}">
+      <button class="send" id="chatSend" aria-label="Send">${ICON.up}</button></div>
+    <span class="small" id="chatHint" style="text-align:center;margin-top:-16px" hidden>Listening. Let go to send.</span>`);
+  const sh = $("#sheet"); sh.scrollTop = sh.scrollHeight; // newest message and its buttons sit just above the input
+  if (focus && !SR) setTimeout(() => $("#chatText")?.focus(), 80);
+}
+// Hold to talk: words appear live as you speak; letting go sends them.
+let REC = null;
+function micStart(e){
+  if (!SR || REC) return; e.preventDefault();
+  try { e.target.setPointerCapture?.(e.pointerId); } catch(_){}
+  REC = new SR(); REC.lang = "en-US"; REC.interimResults = true; REC.continuous = true;
+  REC.onresult = ev => { let txt = ""; for (const r of ev.results) txt += r[0].transcript; const i = $("#chatText"); if (i) i.value = txt; };
+  REC.onerror = () => { toast("Couldn't hear that. Check microphone access in Settings."); };
+  REC.onend = () => { const r = REC; REC = null; $("#chatMic")?.classList.remove("on"); $("#chatHint") && ($("#chatHint").hidden = true); if (r && r.sendOnEnd){ const v = $("#chatText")?.value; if ($("#chatText")) $("#chatText").value = ""; aSend(v); } };
+  try { REC.start(); $("#chatMic").classList.add("on"); $("#chatHint").hidden = false; } catch(_){ REC = null; }
+}
+function micStop(){ if (REC){ REC.sendOnEnd = true; try { REC.stop(); } catch(_){} } }
+
 /* ================= spending pace ================= */
 // Monthly rate of everyday spending from what's been logged (last 90 days). Scheduled bills and pockets don't count.
 function trend(){
@@ -542,7 +764,7 @@ function trend(){
   const days = Math.round((t - from) / 864e5) + 1;
   const byCat = {}; let total = 0;
   for (const x of exp){ const d = pd(x.date); if (d < from || d > t) continue; total += +x.amount; byCat[x.category] = (byCat[x.category] || 0) + +x.amount; }
-  const k = 30.44 / days; for (const c in byCat) byCat[c] *= k;
+  const k = 30.44 / Math.max(days, 7); for (const c in byCat) byCat[c] *= k; // at least a week, so a few days of data don't spike it
   return {days, monthly: total * k, byCat, ready: days >= 14};
 }
 
@@ -577,7 +799,7 @@ function pocketsView(){
       <span class="pk-t"><b>${esc(p.name)}</b><span class="small">${meta || "No goal yet"}</span></span><span class="pk-v">${money(pocketBal(p))}</span>${ICON.chev}</span>
       ${goal ? `<div class="bar"><i class="good" style="width:${(f * 100).toFixed(1)}%"></i></div><span class="small">${money(fin)} of ${money(goal)} saved</span>` : ""}</button>`;
   };
-  const tpl = POCKET_TEMPLATES.map(([e, n], i) => `<button class="chip" data-ptpl="${i}">${e} ${n}</button>`).join("");
+  const tpl = POCKET_TEMPLATES.map(([e, n], i) => `<button class="chip" data-ptpl="${i}">${e} ${n}</button>`).join("") + `<button class="chip new" data-pnew="1">＋ Custom</button>`;
   return `<div class="topbar"><h1>Pockets</h1>${list.length ? `<button class="link" data-pnew="1">New pocket</button>` : ""}</div>
   <span class="small" style="margin-top:-18px;font-size:14px;line-height:1.45">Money in savings set aside for trips and things you want, kept apart from your main budget.</span>
   <div class="accts"><div><span class="small">Savings</span><b>${money(b.savings)}</b></div><div><span class="small">In pockets</span><b>${money(held)}</b></div><div><span class="small">Free</span><b class="${free < 0 ? "neg" : ""}">${money(free)}</b></div></div>
@@ -633,8 +855,9 @@ function openPocketEditor(id, tpl){
 function drawPocketEditor(){
   const p = PF.id ? pocketOf(PF.id) : null, hasItems = p && (p.items || []).length;
   openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">${p ? "Edit pocket" : "New pocket"}</span><span style="width:32px"></span></div>
-    ${fld("pfName", "Name", PF.name, "text", 'data-pf="name" placeholder="Summer trip"')}
-    <div class="field"><span class="flabel">Icon</span><div class="chips">${POCKET_EMOJI.map(e => `<button class="chip" data-pemoji="${e}" aria-pressed="${e === PF.emoji}" style="font-size:18px;padding:6px 11px">${e}</button>`).join("")}</div></div>
+    ${fld("pfName", "Name", PF.name, "text", 'data-pf="name" placeholder="Concert, wedding, new laptop"')}
+    <div class="field"><span class="flabel">Icon</span><div class="chips">${POCKET_EMOJI.map(e => `<button class="chip" data-pemoji="${e}" aria-pressed="${e === PF.emoji && !PF.own}" style="font-size:18px;padding:6px 11px">${e}</button>`).join("")}</div></div>
+    ${fld("pfOwn", "Or type any emoji", PF.own || (POCKET_EMOJI.includes(PF.emoji) ? "" : PF.emoji), "text", 'data-pf="own" maxlength="8" placeholder="🎤"')}
     ${hasItems ? `<span class="small">Goal is ${money(pocketGoal(p))}, the total of this pocket's budget items.</span>` : fld("pfTarget", "Goal amount", PF.target, "text", 'data-pf="target" inputmode="decimal" placeholder="$0"')}
     ${fld("pfDate", "Need it by (optional)", PF.date, "date", 'data-pf="date"')}
     <div class="spacer"></div><button class="primary" id="pfSave">Save</button>
@@ -645,7 +868,7 @@ function savePocket(){
   readPF(); const name = (PF.name || "").trim(); if (!name) return toast("Give it a name");
   const list = S().pockets = pockets(); let p = PF.id ? pocketOf(PF.id) : null;
   if (!p){ p = {id: newId("p"), adds: [], items: []}; list.push(p); }
-  p.name = name; p.emoji = PF.emoji || "💰"; if (PF.target != null) p.target = num(PF.target);
+  p.name = name; p.emoji = (PF.own || "").trim() || PF.emoji || "💰"; if (PF.target != null) p.target = num(PF.target);
   if (PF.date) p.date = PF.date; else delete p.date;
   persist(); PID = p.id; view = "pocket"; closeSheet(); toast("Saved");
 }
@@ -733,16 +956,16 @@ function everyday(basis = PLAN.basis){
   const budgeted = cats().filter(c => !billCats.has(c.id)).reduce((s, c) => s + (+c.budget || 0), 0);
   const card = (S().bills || []).filter(b => b.amount === "card").reduce((s, b) => s + (+b.fallback || 0), 0);
   const tr = basis === "trend" ? trend() : null;
-  return Math.max(0, (tr && tr.ready ? tr.monthly : budgeted) - card);
+  return Math.max(0, (basis === "trend" ? (tr ? tr.monthly : 0) : budgeted) - card);
 }
 function paceHTML(){
-  const tr = trend(); if (!tr || !tr.ready) return "";
+  const tr = trend(); if (!tr) return "";
   const rows = Object.entries(tr.byCat).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id, pace]) => {
     const c = catOf(id), bud = +c.budget || 0, over = bud && pace > bud * 1.05;
     return `<div class="meter"><div class="meter-top"><b>${esc(c.label)}</b><span>${money(pace)}/mo${bud ? ` <span class="muted">of ${money(bud)}</span>` : ""}</span></div>${bud ? barHTML(pace, bud, null) : ""}
       ${over ? `<span class="small" style="color:var(--warn)">⚠️ On pace to go ${money(pace - bud)} over</span>` : ""}</div>`;
   }).join("");
-  return `<section class="card" style="gap:14px"><span class="sec-title">📈 Your spending pace</span><span class="small" style="margin-top:-8px">Last ${tr.days} days of logged spending, as a monthly rate</span>${rows}</section>`;
+  return `<section class="card" style="gap:14px"><span class="sec-title">📈 Your spending pace</span><span class="small" style="margin-top:-8px">Last ${tr.days} day${tr.days === 1 ? "" : "s"} of logged spending, as a monthly rate${tr.ready ? "" : ". Early read: gets steadier after 2 weeks"}</span>${rows}</section>`;
 }
 const autoSavers = () => (S().income || []).some(i => i.autoSave);
 let SERIES = null;
@@ -852,8 +1075,8 @@ function planView(){
   </figure>
   <section class="card" style="gap:16px">
     <span class="sec-title">🔮 What if…</span>
-    <div class="field"><span class="flabel">Everyday spending based on</span><div class="seg"><button data-basis="budget" aria-pressed="${PLAN.basis === "budget"}">Budgets · ${money(eb)}</button><button data-basis="trend" aria-pressed="${PLAN.basis === "trend"}" ${tr && tr.ready ? "" : "disabled"}>Your pace${tr && tr.ready ? " · " + money(et) : ""}</button></div>
-      <span class="small">${!tr ? "Log what you spend and the plan learns your pace." : !tr.ready ? `Your pace unlocks after 2 weeks of logged spending (${tr.days} day${tr.days === 1 ? "" : "s"} so far).` : PLAN.basis === "trend" ? `Based on the last ${tr.days} days of what you've logged.` : "Based on your monthly budgets."}</span></div>
+    <div class="field"><span class="flabel">Everyday spending based on</span><div class="seg"><button data-basis="budget" aria-pressed="${PLAN.basis === "budget"}">Budgets · ${money(eb)}</button><button data-basis="trend" aria-pressed="${PLAN.basis === "trend"}">Your pace · ${money(et)}</button></div>
+      <span class="small">${PLAN.basis === "budget" ? "Based on your monthly budgets." : !tr ? "No spending logged yet, so your pace is $0. Log purchases with + and it fills in." : !tr.ready ? `Only ${tr.days} day${tr.days === 1 ? "" : "s"} logged so far. Your pace gets more accurate after 2 weeks.` : `Based on the last ${tr.days} days of what you've logged.`}</span></div>
     ${ed ? `<label class="check" style="font-size:13px"><input type="checkbox" id="pSpend" ${PLAN.spend ? "checked" : ""}> Count everyday spending, about ${money(ed)} a month</label>
     <div class="slider"><div class="slider-top"><label for="pCut">I spend less each month</label><b id="pCutV">${money(PLAN.cut)}</b></div><input type="range" id="pCut" min="0" max="${maxCut}" step="25" value="${PLAN.cut}"></div>`
       : `<button class="link" data-open="settings" style="align-self:flex-start;text-align:left">Set monthly budgets in Settings to see everyday spending here</button>`}
@@ -878,6 +1101,9 @@ function scrub(e){
 }
 document.addEventListener("pointerdown", e => { if (e.target.id === "pHit"){ try { e.target.setPointerCapture(e.pointerId); } catch(_){} scrub(e); } });
 document.addEventListener("pointermove", scrub);
+document.addEventListener("pointerdown", e => { if (e.target.closest?.("#chatMic")) micStart(e); });
+for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, () => micStop());
+document.addEventListener("contextmenu", e => { if (e.target.closest?.("#chatMic")) e.preventDefault(); });
 
 let spendMonth = null;
 function spendingView(){
@@ -1040,13 +1266,17 @@ function logEvent(ref){
 /* --- editors --- */
 let EDIT = null, confirmDel = false;
 function schedFields(it){
-  const f = it ? freqOf(it) : "monthly", n = it ? nextDate(it) : today(), days = it?.days || [it?.day || 1];
+  const f = it ? freqOf(it) : "monthly", n = it ? (baseDates(it, today(), addDays(today(), 800))[0] || (it.rule === "once" ? pd(it.date) : null)) : today(), days = it?.days || [it?.day || 1];
   // "Next date" fills one of the two days, so this field shows the other one
   const other = f !== "twice" ? 15 : n && n.getDate() === days[0] ? days[1] : days[0];
   return `${sel("eFreq","How often",FREQS,f)}
     ${fld("eDate", f === "once" ? "Date" : "Next date", n ? iso(n) : iso(today()), "date")}
     ${fld("eDay2","Other payday or due day of the month", other, "number", 'inputmode="numeric" min="1" max="31"')}
     ${fld("eEnd","Last date (optional)", it?.end || "", "date")}`;
+}
+function movesNote(it){
+  const mv = it?.moves && Object.entries(it.moves); if (!mv || !mv.length) return "";
+  return `<div class="small" style="line-height:1.5">Changed dates: ${mv.sort().map(([a, b]) => `${fmtShort(pd(a))} → ${b === "skip" ? "skipped" : fmtShort(pd(b))}`).join(", ")}<br><button class="link" data-clrmoves="1" style="padding:4px 0">Put these back on schedule</button></div>`;
 }
 function openEditor(kind, id){
   EDIT = {kind, id}; confirmDel = false; drawEditor();
@@ -1059,13 +1289,14 @@ function drawEditor(){
   let body = "";
   if (kind === "income"){
     body = `${fld("eName","Name",it?.name || "","text",'placeholder="Paycheck"')}${fld("eAmt","Amount each time",it ? money(+it.amount, true) : "","text",'inputmode="decimal"')}${schedFields(it)}
-      <label class="check"><input type="checkbox" id="eAuto" ${it ? (it.autoSave ? "checked" : "") : "checked"}> Move my auto save amount to savings each time</label>`;
+      ${sel("eWknd","If payday lands on a weekend",[["","Paid that day"],["before","Paid the Friday before"],["after","Paid the Monday after"]],it?.weekend || "")}
+      <label class="check"><input type="checkbox" id="eAuto" ${it ? (it.autoSave ? "checked" : "") : "checked"}> Move my auto save amount to savings each time</label>${movesNote(it)}`;
   } else if (kind === "bill"){
     const isCard = it?.amount === "card";
     body = `${fld("eName","Name",it?.name || "","text",'placeholder="Phone"')}
       <label class="check"><input type="checkbox" id="eCard" ${isCard ? "checked" : ""}> This pays my full card balance</label>
       ${fld("eAmt", isCard ? "Estimate" : "Amount", it ? money(isCard ? (+it.fallback || 0) : +it.amount, true) : "", "text", 'inputmode="decimal"')}
-      ${schedFields(it)}${sel("eCat","Counts toward budget",cats().map(c => [c.id, c.label]),it?.category || "bills")}`;
+      ${schedFields(it)}${movesNote(it)}${sel("eCat","Counts toward budget",cats().map(c => [c.id, c.label]),it?.category || "bills")}`;
   } else {
     const g = EDIT.group || it?.group || "wants"; EDIT.group = g;
     body = `${fld("eName","Name",it?.label || "","text",'placeholder="Coffee"')}
@@ -1096,7 +1327,10 @@ function saveEditor(){
     const dateStr = $("#eDate").value; if (!dateStr){ toast("Pick a date"); return; }
     const freq = $("#eFreq").value;
     const it = {id: id === "new" ? newId(kind === "income" ? "i" : "b") : id, name, ...buildSchedule(freq, dateStr, $("#eDay2").value, freq === "once" ? "" : $("#eEnd").value)};
-    if (kind === "income"){ it.amount = num($("#eAmt").value); it.autoSave = $("#eAuto").checked; }
+    const old = (kind === "income" ? S().income : S().bills || []).find(x => x.id === id);
+    if (old?.moves) it.moves = old.moves;
+    if (kind === "income"){ it.amount = num($("#eAmt").value); it.autoSave = $("#eAuto").checked; if ($("#eWknd").value) it.weekend = $("#eWknd").value; }
+    else if (old?.weekend) it.weekend = old.weekend;
     else { it.category = $("#eCat").value; if ($("#eCard").checked){ it.amount = "card"; it.fallback = num($("#eAmt").value); } else it.amount = num($("#eAmt").value); }
     if (!(it.amount === "card" || it.amount > 0)){ toast("Enter an amount above $0"); return; }
     const key = kind === "income" ? "income" : "bills", list = S()[key] || [], i = list.findIndex(x => x.id === id);
@@ -1167,6 +1401,13 @@ document.addEventListener("click", e => {
   if ("close" in d){ EDIT = null; return closeSheet(); }
   if (d.log) return logEvent(d.log);
   if (d.h){ PLAN.h = +d.h; return render(); }
+  if (d.chat) return openChat();
+  if (d.aex){ if ($("#chatText")) $("#chatText").value = ""; return aSend(d.aex); }
+  if (d.aok) return aConfirm(true);
+  if (d.ano) return aConfirm(false);
+  if (d.aundo){ CHAT.pending = {apply: () => { DATA = JSON.parse(CHAT.undo); CHAT.undo = null; }, done: "Undone. Everything is back to how it was."}; return aConfirm(true); }
+  if (el.id === "chatSend"){ const v = $("#chatText").value; $("#chatText").value = ""; return aSend(v); }
+  if (d.clrmoves){ const it = (EDIT.kind === "income" ? S().income : S().bills).find(x => x.id === EDIT.id); if (it){ delete it.moves; persist(); toast("Back on schedule"); } return drawEditor(); }
   if (d.basis){ PLAN.basis = d.basis; return render(); }
   if (d.pocket){ PID = d.pocket; return go("pocket"); }
   if (d.pnew) return openPocketEditor(null);
@@ -1176,7 +1417,7 @@ document.addEventListener("click", e => {
   if (d.pspend) return openPocketMoney("spend");
   if (d.pitem) return openPocketItem(d.pitem);
   if (d.pdel) return deletePocketEntry(d.pdel);
-  if (d.pemoji){ readPF(); PF.emoji = d.pemoji; return drawPocketEditor(); }
+  if (d.pemoji){ readPF(); PF.emoji = d.pemoji; PF.own = ""; return drawPocketEditor(); }
   if (d.pfrom){ readPF(); PF.from = d.pfrom; return drawPocketMoney(); }
   if (d.pmeth){ readPF(); PF.method = d.pmeth; return drawPocketMoney(); }
   if (d.pitemsel){ readPF(); PF.item = PF.item === d.pitemsel ? null : d.pitemsel; return drawPocketMoney(); }
@@ -1238,6 +1479,7 @@ document.addEventListener("change", e => {
   }
 });
 document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.id === "chatText"){ e.preventDefault(); const v = e.target.value; e.target.value = ""; return aSend(v); }
   if (e.key === "Escape" && !$("#sheet").hidden){ EDIT = null; closeSheet(); }
   if (e.key === "Enter" && e.target.tagName === "INPUT"){
     if (e.target.id === "fNewCat"){ e.preventDefault(); $('[data-addcat="wants"]')?.click(); }
