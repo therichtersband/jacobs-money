@@ -158,6 +158,13 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
+.cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.cc-chip{font-size:12px;padding:5px 10px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.cc-chip b{color:var(--ink);font-weight:600}
+.ccard{display:flex;align-items:center;gap:12px;border:0;border-top:1px solid var(--line);background:none;padding:12px 0 8px;width:100%;text-align:left;color:inherit;font:inherit}
+.ccard .chev{width:16px;height:16px;color:var(--tick);flex:none}
+.cc-v{display:flex;flex-direction:column;align-items:flex-end;white-space:nowrap}
+.cc-v b{font-size:16px;font-weight:600}
 .card.due{border:1.5px solid color-mix(in srgb,var(--accent) 45%,transparent)}
 .newcat-g{display:flex;align-items:center;gap:10px;width:100%}
 .newcat-g .seg{flex:1}
@@ -401,6 +408,7 @@ function balances(){
     else if (t.type === "cardpay"){ b.checking -= a; b.card = Math.max(0, b.card - a); } // purchases you didn't log are covered by the payment
     else if (t.type === "adjust" && t.account in b) b[t.account] += a;
   }
+  if (cardsList().length) b.card = Object.values(cardBals()).reduce((s, v) => s + v, 0);
   return b;
 }
 const done = ref => TX().some(t => t.ref === ref);
@@ -417,6 +425,7 @@ function project(days, autoOverride, spendMonthly, withPockets){
     }
   }
   for (const b of S().bills || []){
+    if (b.amount === "card" && cardsList().length) continue;
     let first = true;
     for (const {d, orig} of occurrences(b, s, e)){
       const ref = `${b.id}@${iso(orig)}`;
@@ -425,6 +434,17 @@ function project(days, autoOverride, spendMonthly, withPockets){
       first = false;
       if (done(ref)) continue;
       ev.push({d, name: b.name, amt: -amt, kind: b.amount === "card" ? "card" : "out", ord: 2, ref, item: b});
+    }
+  }
+  const cbal = cardBals();
+  for (const c of cardsList()){
+    if (!c.due) continue;
+    let first = true;
+    for (const {d, orig} of occurrences({rule: "monthly", days: [+c.due]}, s, e)){
+      const ref = `${c.billId || "card:" + c.id}@${iso(orig)}`;
+      const amt = first ? Math.max(0, cbal[c.id] || 0) : (+c.usual || cbal[c.id] || 0); first = false;
+      if (done(ref) || !(amt > 0)) continue;
+      ev.push({d, name: `${c.name} payment`, amt: -amt, kind: "card", ord: 2, ref, cardId: c.id});
     }
   }
   if (withPockets){
@@ -490,14 +510,15 @@ function barHTML(spent, budget, expected, cls){
   return `<div class="bar">${budget > 0 ? `<i class="${c}" style="width:${Math.min(100, f*100).toFixed(1)}%"></i>` : ""}${ef != null && ef < 0.995 ? `<u style="left:${(ef*100).toFixed(1)}%"></u>` : ""}</div>`;
 }
 function homeView(){
-  const t = today(), b = balances(), ev = project(60, null, 0, true);
+  const t = today(), b = balances(), ev = project(60, null, 0, true), cb = cardBals();
   // Safe to spend: the lowest checking gets before the next pay period ends (paychecks, bills, the card payment
   // and auto saves all on their dates), minus the cushion. Spending that much today never leaves a bill uncovered.
   const pays = ev.filter(x => x.kind === "in" && x.d >= t);
   const next = pays[0], after = next && pays.find(x => x.d > next.d);
   const end = after ? addDays(after.d, -1) : next ? addDays(next.d, 31) : addDays(t, 14);
   const cushion = +S().cushion || 0;
-  const owed = (S().bills || []).some(x => x.amount === "card") ? 0 : Math.max(0, b.card); // no card payment scheduled: hold the balance now
+  // a card with no payment date: hold its balance now
+  const owed = cardsList().length ? cardsList().filter(c => !c.due).reduce((s, c) => s + Math.max(0, cb[c.id] || 0), 0) : (S().bills || []).some(x => x.amount === "card") ? 0 : Math.max(0, b.card);
   let lowPt = b.checking, lowAt = null;
   for (const x of ev){ if (x.d > end) break; if (x.chk < lowPt){ lowPt = x.chk; lowAt = x; } }
   const safe = lowPt - owed - cushion;
@@ -522,7 +543,7 @@ function homeView(){
       <span class="small ${left < 0 ? "neg" : ""}">${left >= 0 ? money(left) + " left this month" : money(-left) + " over budget"}</span></button>`;
   };
   const dueNow = ev.filter(x => x.kind !== "save" && x.d <= t), upcoming = ev.filter(x => x.kind !== "save" && x.d > t).slice(0, 3);
-  const needCardBill = b.card > .5 && !(S().bills || []).some(x => x.amount === "card");
+  const needCardBill = b.card > .5 && !(S().bills || []).some(x => x.amount === "card") && !cardsList().length;
   const low = ev.length ? ev.reduce((m, x) => x.chk < m.chk ? x : m) : null;
   const daysTo = next ? Math.round((next.d - t) / 864e5) : null;
   const pill = next ? (daysTo <= 0 ? "Payday today" : daysTo === 1 ? "Payday tomorrow" : `Payday in ${daysTo} days`) : "Next 2 weeks";
@@ -537,22 +558,27 @@ function homeView(){
     <div class="hero-top"><span class="label">Safe to spend</span><span class="pill ${safe < 0 ? "bad" : ""}">${pill}</span></div>
     <span class="big ${safe < 0 ? "neg" : ""}">${bigMoney(safe)}</span>
     <span class="sub">${sub}</span>
+    ${cardsList().some(c => +c.limit) ? `<div class="cc-chips">${cardsList().filter(c => +c.limit).map(c => `<span class="cc-chip">💳 ${esc(c.name)} <b>${money(Math.max(0, c.limit - (cb[c.id] || 0)))}</b> available</span>`).join("")}</div>` : ""}
   </section>
   ${!TX().length && !b.checking && !b.savings && !b.card ? `<button class="outline" data-open="match" style="background:none;text-align:left;width:100%;align-items:center;color:inherit">
     <span style="flex:1;display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:600">Add your balances to start</span><span class="small" style="font-size:13px">Type in what checking and savings have right now.</span></span><span class="mini" style="padding:9px 12px;font-size:13px">Add</span></button>` : ""}
   ${dueNow.length ? `<section class="card due" style="gap:4px"><div class="sec-head"><span class="sec-title">${dueNow.some(x => x.late && x.d < t) ? "📅 Waiting on you" : "📅 Due today"}</span></div>
     <span class="small" style="padding-bottom:4px">Mark each one when it happens so your balances stay right.</span>
     <div class="list">${dueNow.map(x => evRow(x, false)).join("")}</div></section>` : ""}
-  ${needCardBill ? `<button class="outline" data-cardbill="1" style="background:none;text-align:left;width:100%;align-items:center;color:inherit">
-    <span style="flex:1;display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:600">💳 When is your credit card payment due?</span><span class="small" style="font-size:13px">Until it's set, the full ${money(b.card)} is held back today. Add it so your paycheck can cover it.</span></span><span class="mini" style="padding:9px 12px;font-size:13px">Add</span></button>` : ""}
+  ${needCardBill ? `<button class="outline" data-cardnew="1" style="background:none;text-align:left;width:100%;align-items:center;color:inherit">
+    <span style="flex:1;display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:600">💳 Add your credit cards</span><span class="small" style="font-size:13px">Name each card with what you owe and when it's due. Until then, the full ${money(b.card)} is held back today.</span></span><span class="mini" style="padding:9px 12px;font-size:13px">Add</span></button>` : ""}
   <section class="sec" style="gap:10px">
     <div class="sec-head"><span class="sec-title">Balances</span><button class="link" data-open="match">Update</button></div>
     <button class="accts" data-open="match" aria-label="Update your balances">
       <div><span class="small">Checking</span><b class="${b.checking < 0 ? "neg" : ""}">${money(b.checking)}</b></div>
       <div><span class="small">Savings</span><b>${money(b.savings)}</b></div>
-      <div><span class="small">${b.card < -0.5 ? "Card credit" : "Card owed"}</span><b>${money(Math.abs(b.card))}</b></div>
+      <div><span class="small">${b.card < -0.5 ? "Card credit" : cardsList().length > 1 ? "Cards owed" : "Card owed"}</span><b>${money(Math.abs(b.card))}</b></div>
     </button>
   </section>
+  ${cardsList().length ? `<section class="card" style="gap:0"><div class="sec-head" style="padding-bottom:4px"><span class="sec-title">Cards</span><button class="link" data-cardnew="1">Add card</button></div>
+    ${cardsList().map(c => { const o = cb[c.id] || 0, lim = +c.limit || 0, nd = cardNextDue(c);
+      return `<button class="ccard" data-cardedit="${esc(c.id)}"><span class="mt"><b>💳 ${esc(c.name)}</b><span class="small">${nd ? `Payment due ${fmtShort(nd)}` : "Tap to add a due date"}${lim ? ` · ${money(Math.max(0, lim - o))} available` : ""}</span></span>
+        <span class="cc-v"><b>${money(o)}</b><span class="small">owed</span></span>${ICON.chev}</button>${lim ? `<div style="padding-bottom:10px">${barHTML(o, lim, null)}</div>` : ""}`; }).join("")}</section>` : ""}
   <section class="card" style="gap:18px">
     <div class="sec-head"><span class="sec-title">${t.toLocaleDateString("en-US",{month:"long"})}</span><button class="link" data-open="spending">Day ${t.getDate()} of ${days} · Details</button></div>
     ${meterLine("Needs", N)}
@@ -584,6 +610,81 @@ function evRow(x, showAfter){
     <span class="n"><span>${esc(x.name)}</span>${canLog ? `<button class="mini" data-log="${esc(x.ref)}">${x.kind === "in" ? "Mark received" : "Mark paid"}</button>` : !showAfter && inDays > 0 ? `<span class="small">${inDays === 1 ? "Tomorrow" : `In ${inDays} days`}</span>` : ""}</span>
     <span class="a ${x.amt > 0 ? "in" : ""}">${x.amt > 0 ? "+" : ""}${money(Math.abs(x.amt))}</span>
     ${showAfter ? `<span class="after ${x.chk < (+S().cushion || 0) ? "neg" : ""}">${money(x.chk)}</span>` : ""}</div>`;
+}
+
+/* ================= credit cards ================= */
+// Optional named cards. Card activity logged before cards existed (no cardId) belongs to the first card.
+const cardsList = () => S().cards || [];
+function cardBals(){
+  const list = cardsList(), bal = {}; if (!list.length) return bal;
+  list.forEach(c => bal[c.id] = 0);
+  const first = list[0].id, pick = id => id && id in bal ? id : first;
+  bal[first] += +(S().start?.card) || 0;
+  for (const t of TX()){
+    const a = +t.amount || 0;
+    if (t.type === "expense" && t.method === "card") bal[pick(t.cardId)] += a;
+    else if (t.type === "cardpay"){ const k = pick(t.cardId); bal[k] = Math.max(0, bal[k] - a); }
+    else if (t.type === "adjust" && t.account === "card") bal[pick(t.cardId)] += a;
+  }
+  return bal;
+}
+const cardName = id => (cardsList().find(c => c.id === id) || cardsList()[0] || {}).name || "credit card";
+const methodWords = (m, id) => m === "card" && cardsList().length ? "on " + cardName(id || S().lastCard) : METHOD_WORDS[m];
+// next payment date that hasn't been marked paid yet
+const cardNextDue = c => c.due ? baseDates({rule: "monthly", days: [+c.due]}, today(), addDays(today(), 70)).find(d => !done(`${c.billId || "card:" + c.id}@${iso(d)}`)) : null;
+function payWith(){
+  if (!cardsList().length) return `<div class="field"><span class="flabel">Paid with</span><div class="seg">${[["checking", "Debit / bank"], ["card", "Credit card"], ["cash", "Cash"]].map(([v, l]) => `<button data-method="${v}" aria-pressed="${v === F.method}">${l}</button>`).join("")}</div></div>`;
+  const cid = F.cardId || S().lastCard || cardsList()[0].id, cur = F.method === "card" ? "card:" + cid : F.method;
+  const opts = [["checking", "Debit / bank"], ...cardsList().map(c => ["card:" + c.id, "💳 " + c.name]), ["cash", "Cash"]];
+  return `<div class="field"><span class="flabel">Paid with</span><div class="chips">${opts.map(([v, l]) => `<button class="chip" data-pay="${esc(v)}" aria-pressed="${v === cur}">${esc(l)}</button>`).join("")}</div></div>`;
+}
+function cardPayPick(b){
+  if (!cardsList().length) return `<span class="small">Card owed right now: ${money(b.card, true)}. Paid from checking.</span>`;
+  const cb = cardBals(), cid = F.cardId || cardsList()[0].id;
+  return `<div class="field"><span class="flabel">Which card</span><div class="chips">${cardsList().map(c => `<button class="chip" data-paycard="${esc(c.id)}" aria-pressed="${c.id === cid}">${esc(c.name)} · ${money(cb[c.id] || 0)}</button>`).join("")}</div></div><span class="small">Paid from checking.</span>`;
+}
+let CE = null;
+function openCardEditor(id){
+  const c = id ? cardsList().find(x => x.id === id) : null, cb = cardBals();
+  const owed = c ? (cb[c.id] || 0) : (!cardsList().length ? Math.max(0, balances().card) : 0);
+  const legacy = !cardsList().length && (S().bills || []).find(b => b.amount === "card");
+  CE = {id, confirm: CE && CE.id === id ? CE.confirm : false};
+  openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">${c ? "Edit card" : "Add a credit card"}</span><span style="width:32px"></span></div>
+    ${fld("cName", "Name", c?.name || "", "text", 'placeholder="Chase, Amex, Discover"')}
+    ${fld("cOwed", "Balance you owe now", owed ? owed.toFixed(2) : "", "text", 'inputmode="decimal" placeholder="$0"')}
+    ${!c && cardsList().length === 0 && owed ? `<span class="small" style="margin-top:-12px">The app has ${money(owed)} owed on cards so far. Type just this card's part; add your other cards next.</span>` : ""}
+    ${fld("cLimit", "Credit limit (optional)", c?.limit ? String(c.limit) : "", "text", 'inputmode="decimal" placeholder="$0"')}
+    ${fld("cDue", "Payment due on day of the month", c?.due || (legacy ? (legacy.days || [15])[0] : ""), "number", 'inputmode="numeric" min="1" max="31" placeholder="15"')}
+    <span class="small">The payment comes out of checking that day, planned as the full balance, so your safe to spend covers it.</span>
+    <div class="spacer"></div><button class="primary" id="cSave">Save card</button>
+    ${c ? `<button class="ghost danger" id="cDel">${CE.confirm ? "Tap again to delete this card" : "Delete card"}</button>` : ""}`);
+  if (!c) setTimeout(() => $("#cName")?.focus(), 80);
+}
+function saveCard(){
+  const name = $("#cName").value.trim(); if (!name) return toast("Give the card a name");
+  const owed = num($("#cOwed").value), limit = num($("#cLimit").value), due = Math.min(31, Math.max(0, parseInt($("#cDue").value) || 0));
+  const list = S().cards = cardsList(); let c = CE.id ? list.find(x => x.id === CE.id) : null;
+  if (!c){
+    c = {id: newId("k")};
+    // first card takes over a single 'pays my full card balance' bill, keeping its paid history matched
+    const legacy = !list.length && (S().bills || []).find(b => b.amount === "card");
+    if (legacy){ c.billId = legacy.id; if (+legacy.fallback) c.usual = +legacy.fallback; S().bills = S().bills.filter(b => b !== legacy); }
+    list.push(c);
+  }
+  c.name = name;
+  if (limit) c.limit = limit; else delete c.limit;
+  if (due) c.due = due; else delete c.due;
+  const cur = cardBals()[c.id] || 0, d = Math.round((owed - cur) * 100) / 100;
+  if (Math.abs(d) >= .01) TX().push({id: newId("t"), ts: Date.now(), type: "adjust", account: "card", cardId: c.id, amount: d, category: "adjust", note: "Card balance", date: iso(today())});
+  persist(); CE = null; closeSheet(); toast(`${name} saved`);
+}
+function deleteCard(){
+  if (!CE.confirm){ CE.confirm = true; return openCardEditor(CE.id); }
+  const cb = cardBals(), owed = cb[CE.id] || 0;
+  // clear its balance so it doesn't move onto another card
+  if (owed) TX().push({id: newId("t"), ts: Date.now(), type: "adjust", account: "card", cardId: CE.id, amount: -owed, category: "adjust", note: "Card removed", date: iso(today())});
+  S().cards = cardsList().filter(c => c.id !== CE.id);
+  persist(); CE = null; closeSheet(); toast("Card deleted");
 }
 
 /* ================= assistant ================= */
@@ -711,10 +812,10 @@ function aParse(raw){
   }
   // spending that already happened
   if (amt && (/\b(spent|bought|purchased)\b/.test(s) || /\bpaid \$/.test(s) && !/\b(get|getting|got|be|being) paid\b/.test(s))){
-    const cat = aCat(s), meth = /\bcredit\b/.test(s) ? "card" : /\b(debit|checking|bank)\b/.test(s) ? "checking" : /\bcash\b/.test(s) ? "cash" : /\bsavings\b/.test(s) ? "savings" : defaultMethod();
+    const cat = aCat(s), kc = cardsList().find(c => s.includes(c.name.toLowerCase())), meth = kc || /\bcredit\b/.test(s) ? "card" : /\b(debit|checking|bank)\b/.test(s) ? "checking" : /\bcash\b/.test(s) ? "cash" : /\bsavings\b/.test(s) ? "savings" : defaultMethod();
     const date = to && to <= today() ? to : /\byesterday\b/.test(s) ? addDays(today(), -1) : today(), note = aName(s, "");
-    return {say: `Log ${money(amt, true)} on ${catOf(cat).label}${note ? ` (${note})` : ""} ${METHOD_WORDS[meth]} on ${fmtDay(date)}?`,
-      apply: () => { S().lastMethod = meth; TX().push({id: newId("t"), ts: Date.now(), type: "expense", amount: amt, category: cat, method: meth, note, date: iso(date)}); TX().sort((a, c) => a.date < c.date ? -1 : a.date > c.date ? 1 : (a.ts || 0) - (c.ts || 0)); },
+    return {say: `Log ${money(amt, true)} on ${catOf(cat).label}${note ? ` (${note})` : ""} ${methodWords(meth, kc?.id)} on ${fmtDay(date)}?`,
+      apply: () => { S().lastMethod = meth; TX().push({id: newId("t"), ts: Date.now(), type: "expense", amount: amt, category: cat, method: meth, note, date: iso(date), ...(meth === "card" && cardsList().length ? {cardId: (kc || cardsList().find(c => c.id === S().lastCard) || cardsList()[0]).id} : {})}); TX().sort((a, c) => a.date < c.date ? -1 : a.date > c.date ? 1 : (a.ts || 0) - (c.ts || 0)); },
       done: `Logged ${money(amt, true)}.`};
   }
   // one-time money coming in
@@ -1236,6 +1337,9 @@ function settingsView(){
       <label for="bud_${esc(c.id)}" hidden>${esc(c.label)} budget</label><input class="inl" id="bud_${esc(c.id)}" data-bud="${esc(c.id)}" inputmode="decimal" placeholder="Set" value="${+c.budget ? money(+c.budget) : ""}"></div>`).join("")}</div>
     <span class="small" style="padding:0 4px">Tap a name to rename it, switch need or want, or delete it.</span></div>
 
+  <div class="group"><div class="group-head"><h2>Credit cards</h2><button class="link" data-cardnew="1">Add</button></div>
+    <div class="box">${cardsList().map(c => `<button class="item" data-cardedit="${esc(c.id)}"><span class="t"><b>${esc(c.name)}</b><span class="small">${c.due ? "Due on the " + ord(c.due) : "No due date"}${c.limit ? " · limit " + money(+c.limit) : ""}</span></span><span class="v">${money(cardBals()[c.id] || 0)}</span>${ICON.chev}</button>`).join("") || `<div class="empty">No cards yet.</div>`}</div></div>
+
   <div class="group"><div class="group-head"><h2>Savings</h2></div>
     <div class="box">
       <div class="item"><label class="t" for="sAuto"><b>Auto save per paycheck</b></label><input class="inl" id="sAuto" data-set="autoSave" inputmode="decimal" value="${money(+S().autoSave || 0)}"></div>
@@ -1271,7 +1375,7 @@ const sel = (id, label, opts, val) => `<div class="field" id="w_${id}"><label fo
 /* --- log --- */
 const F = {};
 function openLog(pre = {}){
-  Object.assign(F, {type: "expense", move: "save", allCats: false, cat: null, method: defaultMethod(), newGroup: "wants", newCatName: "", source: null, auto: true, ref: null, newCat: null, amount: "", note: "", date: iso(today())}, pre);
+  Object.assign(F, {type: "expense", move: "save", allCats: false, cat: null, method: defaultMethod(), cardId: S().lastCard || null, newGroup: "wants", newCatName: "", source: null, auto: true, ref: null, newCat: null, amount: "", note: "", date: iso(today())}, pre);
   drawLog(true);
 }
 const defaultMethod = () => S().lastMethod || ((S().bills || []).some(b => b.amount === "card") ? "card" : "checking");
@@ -1292,7 +1396,7 @@ function drawLog(focus){
         <div class="newcat-g"><span class="small">Counts as</span><div class="seg"><button data-ngroup="wants" aria-pressed="${F.newGroup === "wants"}">Want</button><button data-ngroup="needs" aria-pressed="${F.newGroup === "needs"}">Need</button></div></div>
         <span class="small" style="width:100%">Needs are must-pays like rent, groceries and gas. Wants are extras like dining out and fun. Each adds to its own bar on Home.</span>` : `${rest.length && !F.allCats ? `<button class="chip new" data-allcats="1">More</button>` : ""}<button class="chip new" data-newcat="1">+ New</button>`}</div></div>
       <div id="fBud">${budLine()}</div>
-      <div class="field"><span class="flabel">Paid with</span><div class="seg">${segBtns([["checking","Debit / bank"],["card","Credit card"],["cash","Cash"]], "method", F.method)}</div></div>
+      ${payWith()}
       ${fld("fDate","Date",F.date,"date")}`;
   } else if (F.type === "income"){
     const srcs = (S().income || []).map(i => [i.id, i.name]).concat([["other", "Other"]]);
@@ -1303,7 +1407,7 @@ function drawLog(focus){
       ${fld("fDate","Date",F.date,"date")}`;
   } else {
     body = `<div class="field"><span class="flabel">What</span><div class="seg">${segBtns([["save","To savings"],["pull","From savings"],["cardpay","Pay card"]], "move", F.move)}</div></div>
-      ${F.move === "cardpay" ? `<span class="small">Card owed right now: ${money(b.card, true)}. Paid from checking.</span>` : ""}
+      ${F.move === "cardpay" ? cardPayPick(b) : ""}
       ${fld("fDate","Date",F.date,"date")}`;
   }
   const amt = num(F.amount);
@@ -1326,26 +1430,27 @@ function submitLog(){
     if (!F.cat){ toast("Pick a category"); return; }
     rows.push({type: "expense", amount: amt, category: F.cat, method: F.method, note: F.note.trim(), date, ref});
     S().lastMethod = F.method;
+    if (F.method === "card" && cardsList().length){ rows[rows.length - 1].cardId = F.cardId || S().lastCard || cardsList()[0].id; S().lastCard = rows[rows.length - 1].cardId; }
   } else if (F.type === "income"){
     const src = (S().income || []).find(i => i.id === F.source) || {};
     rows.push({type: "income", amount: amt, category: "income", note: src.name || "Income", date, ref});
     if (src.autoSave && $("#fAuto")?.checked && +S().autoSave > 0) rows.push({type: "save", amount: +S().autoSave, category: "transfer", note: "Auto save", date});
   } else {
-    rows.push({type: F.move, amount: amt, category: "transfer", note: "", date, ref});
+    rows.push({type: F.move, amount: amt, category: "transfer", note: "", date, ref, ...(F.move === "cardpay" && cardsList().length ? {cardId: F.cardId || cardsList()[0].id} : {})});
   }
   const group = rows.length > 1 ? newId("g") : undefined, ts = Date.now();
   rows.forEach((r, i) => { const o = {id: newId("t"), ts: ts + i, ...r}; if (group) o.group = group; if (!o.ref) delete o.ref; TX().push(o); });
   TX().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0));
   persist(); closeSheet();
   const ba = F.type === "expense" ? budAfter(F.cat, 0, date) : null;
-  toast(`Logged ${money(amt, true)}${F.type === "expense" ? " " + METHOD_WORDS[F.method] : ""}${rows.length > 1 ? ", " + money(rows[1].amount) + " to savings" : ""}${ba && ba.bu ? (ba.left < -.005 ? ` · ❌ ${money(-ba.left)} over ${ba.c.label}` : ` · ${ba.st === "warn" ? "⚠️ " : ""}${money(ba.left)} left in ${ba.c.label}`) : ""}`);
+  toast(`Logged ${money(amt, true)}${F.type === "expense" ? " " + methodWords(F.method, F.cardId) : ""}${rows.length > 1 ? ", " + money(rows[1].amount) + " to savings" : ""}${ba && ba.bu ? (ba.left < -.005 ? ` · ❌ ${money(-ba.left)} over ${ba.c.label}` : ` · ${ba.st === "warn" ? "⚠️ " : ""}${money(ba.left)} left in ${ba.c.label}`) : ""}`);
 }
 const goLabel = a => F.ref ? `${F.type === "income" ? "Mark received" : "Mark paid"}${a > 0 ? " · " + money(a, true) : ""}` : a > 0 ? "Log " + money(a, true) : "Log it";
 function logEvent(ref){
   const x = project(60).find(e => e.ref === ref); if (!x) return;
   const date = x.d > today() ? iso(today()) : iso(x.d);
   if (x.kind === "in") openLog({type: "income", source: x.item.id, amount: String(x.amt), date, ref});
-  else if (x.kind === "card") openLog({type: "move", move: "cardpay", amount: (-x.amt).toFixed(2), date, ref});
+  else if (x.kind === "card") openLog({type: "move", move: "cardpay", cardId: x.cardId || null, amount: (-x.amt).toFixed(2), date, ref});
   else openLog({type: "expense", cat: x.item.category || "bills", method: "checking", amount: String(-x.amt), note: x.name, date, ref});
 }
 
@@ -1437,19 +1542,22 @@ function openMatch(){
   const b = balances();
   openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Close" style="margin-left:-12px">${ICON.close}</button><span style="font-weight:600">Your balances</span><span style="width:32px"></span></div>
     <span class="small" style="font-size:14px;line-height:1.5">Type what your bank app shows. The difference is saved as a balance fix, so your history stays intact.</span>
-    ${fld("mChk","Checking",b.checking ? b.checking.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}${fld("mSav","Savings",b.savings ? b.savings.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}${fld("mCard","Credit card balance owed",b.card ? b.card.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}
+    ${fld("mChk","Checking",b.checking ? b.checking.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}${fld("mSav","Savings",b.savings ? b.savings.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}${cardsList().length ? cardsList().map(c => { const o = cardBals()[c.id] || 0; return fld("mCard_" + c.id, `${c.name} owed`, o ? o.toFixed(2) : "", "text", 'inputmode="decimal" placeholder="$0"'); }).join("") : fld("mCard","Credit card balance owed",b.card ? b.card.toFixed(2) : "","text",'inputmode="decimal" placeholder="$0"')}
     <div class="spacer"></div><button class="primary" id="mGo">Save balances</button>`);
   setTimeout(() => $("#mChk")?.focus(), 80);
 }
 function saveMatch(){
-  const b = balances(), want = {checking: num($("#mChk").value), savings: num($("#mSav").value), card: num($("#mCard").value)};
+  const b = balances(), want = {checking: num($("#mChk").value), savings: num($("#mSav").value), card: $("#mCard") ? num($("#mCard").value) : b.card};
   // Nothing logged yet: these simply become the starting balances
-  if (!TX().length){ S().start = {asOf: iso(today()), ...want}; persist(); closeSheet(); return toast("Balances saved"); }
+  if (!TX().length && !cardsList().length){ S().start = {asOf: iso(today()), ...want}; persist(); closeSheet(); return toast("Balances saved"); }
   let n = 0;
   for (const k of ["checking","savings","card"]){
+    if (k === "card" && cardsList().length) continue;
     const d = Math.round((want[k] - b[k]) * 100) / 100;
     if (Math.abs(d) >= 0.01){ TX().push({id: newId("t"), ts: Date.now() + n, type: "adjust", account: k, amount: d, category: "adjust", note: "Matched bank", date: iso(today())}); n++; }
   }
+  if (cardsList().length){ const cb = cardBals(); for (const c of cardsList()){ const d = Math.round((num($("#mCard_" + c.id).value) - (cb[c.id] || 0)) * 100) / 100;
+    if (Math.abs(d) >= .01){ TX().push({id: newId("t"), ts: Date.now() + n, type: "adjust", account: "card", cardId: c.id, amount: d, category: "adjust", note: "Matched bank", date: iso(today())}); n++; } } }
   if (!n){ toast("Balances already match"); return; }
   persist(); closeSheet(); toast("Balances updated");
 }
@@ -1486,6 +1594,12 @@ document.addEventListener("click", e => {
   if (d.open === "match") return openMatch();
   if ("close" in d){ EDIT = null; return closeSheet(); }
   if (d.log) return logEvent(d.log);
+  if (d.cardnew) return openCardEditor(null);
+  if (d.cardedit) return openCardEditor(d.cardedit);
+  if (el.id === "cSave") return saveCard();
+  if (el.id === "cDel") return deleteCard();
+  if (d.pay){ readLog(); const [m, id] = d.pay.split(":"); F.method = m; if (id) F.cardId = id; return drawLog(false); }
+  if (d.paycard){ readLog(); F.cardId = d.paycard; F.amount = (cardBals()[d.paycard] || 0).toFixed(2); return drawLog(false); }
   if (d.cardbill){ openEditor("bill", "new"); $("#eName").value = "Credit card payment"; $("#eCard").checked = true; $("#eAmt").value = balances().card.toFixed(2); syncEditor(); return; }
   if (d.h){ PLAN.h = +d.h; return render(); }
   if (d.chat) return openChat();
@@ -1523,7 +1637,7 @@ document.addEventListener("click", e => {
   }
   // log sheet
   if (d.ftype){ readLog(); F.type = d.ftype; F.ref = null; if (d.ftype !== "income") F.amount = ""; return drawLog(false); }
-  if (d.move){ readLog(); F.move = d.move; if (d.move === "cardpay" && !num(F.amount)){ const c = balances().card; if (c > 0) F.amount = c.toFixed(2); } return drawLog(false); }
+  if (d.move){ readLog(); F.move = d.move; if (d.move === "cardpay" && !num(F.amount)){ const c = cardsList().length ? (cardBals()[F.cardId || cardsList()[0].id] || 0) : balances().card; if (c > 0) F.amount = c.toFixed(2); } return drawLog(false); }
   if (d.cat){ readLog(); F.cat = d.cat; return drawLog(false); }
   if (d.method){ readLog(); F.method = d.method; return drawLog(false); }
   if (d.src){ readLog(); F.source = d.src; const s = (S().income || []).find(i => i.id === d.src); F.amount = s ? String(s.amount) : ""; return drawLog(false); }

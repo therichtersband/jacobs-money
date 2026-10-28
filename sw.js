@@ -1,6 +1,6 @@
 // Offline support: keeps the app shell and fonts cached so $$$ opens without a connection.
 // Bump VERSION whenever you change index.html so phones pick up the update.
-const VERSION = "money-v14";
+const VERSION = "money-v16";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
