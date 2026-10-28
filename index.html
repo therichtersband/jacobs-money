@@ -158,6 +158,7 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
+.card.due{border:1.5px solid color-mix(in srgb,var(--accent) 45%,transparent)}
 .newcat-g{display:flex;align-items:center;gap:10px;width:100%}
 .newcat-g .seg{flex:1}
 details.bud{border-top:1px solid var(--line)}
@@ -520,7 +521,8 @@ function homeView(){
     return `<button class="meter" data-open="spending"><div class="meter-top"><b>${label}</b><span>${money(x.sp)} <span class="muted">of ${money(x.bud)}</span></span></div>${barHTML(x.sp, x.bud, x.exp)}
       <span class="small ${left < 0 ? "neg" : ""}">${left >= 0 ? money(left) + " left this month" : money(-left) + " over budget"}</span></button>`;
   };
-  const upcoming = ev.filter(x => x.kind !== "save").slice(0, 3);
+  const dueNow = ev.filter(x => x.kind !== "save" && x.d <= t), upcoming = ev.filter(x => x.kind !== "save" && x.d > t).slice(0, 3);
+  const needCardBill = b.card > .5 && !(S().bills || []).some(x => x.amount === "card");
   const low = ev.length ? ev.reduce((m, x) => x.chk < m.chk ? x : m) : null;
   const daysTo = next ? Math.round((next.d - t) / 864e5) : null;
   const pill = next ? (daysTo <= 0 ? "Payday today" : daysTo === 1 ? "Payday tomorrow" : `Payday in ${daysTo} days`) : "Next 2 weeks";
@@ -538,6 +540,11 @@ function homeView(){
   </section>
   ${!TX().length && !b.checking && !b.savings && !b.card ? `<button class="outline" data-open="match" style="background:none;text-align:left;width:100%;align-items:center;color:inherit">
     <span style="flex:1;display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:600">Add your balances to start</span><span class="small" style="font-size:13px">Type in what checking and savings have right now.</span></span><span class="mini" style="padding:9px 12px;font-size:13px">Add</span></button>` : ""}
+  ${dueNow.length ? `<section class="card due" style="gap:4px"><div class="sec-head"><span class="sec-title">${dueNow.some(x => x.late && x.d < t) ? "📅 Waiting on you" : "📅 Due today"}</span></div>
+    <span class="small" style="padding-bottom:4px">Mark each one when it happens so your balances stay right.</span>
+    <div class="list">${dueNow.map(x => evRow(x, false)).join("")}</div></section>` : ""}
+  ${needCardBill ? `<button class="outline" data-cardbill="1" style="background:none;text-align:left;width:100%;align-items:center;color:inherit">
+    <span style="flex:1;display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:600">💳 When is your credit card payment due?</span><span class="small" style="font-size:13px">Until it's set, the full ${money(b.card)} is held back today. Add it so your paycheck can cover it.</span></span><span class="mini" style="padding:9px 12px;font-size:13px">Add</span></button>` : ""}
   <section class="sec" style="gap:10px">
     <div class="sec-head"><span class="sec-title">Balances</span><button class="link" data-open="match">Update</button></div>
     <button class="accts" data-open="match" aria-label="Update your balances">
@@ -572,9 +579,9 @@ function bigMoney(n){
   return `<span class="cur">${n < -0.5 ? "−" : ""}$</span>${s}`;
 }
 function evRow(x, showAfter){
-  const t = today(), canLog = x.kind !== "save" && x.d <= addDays(t, 3);
+  const t = today(), canLog = x.kind !== "save" && x.d <= t, inDays = Math.round((x.d - t) / 864e5);
   return `<div class="ev ${x.late ? "late" : ""}"><span class="d" aria-label="${x.late ? "Overdue, " : ""}${fmtDay(x.d)}"><span>${x.late ? "Due" : x.d.toLocaleDateString("en-US", {month: "short"})}</span><b>${x.d.getDate()}</b></span>
-    <span class="n"><span>${esc(x.name)}</span>${canLog ? `<button class="mini" data-log="${esc(x.ref)}">${x.kind === "in" ? "Got it" : "Paid"}</button>` : ""}</span>
+    <span class="n"><span>${esc(x.name)}</span>${canLog ? `<button class="mini" data-log="${esc(x.ref)}">${x.kind === "in" ? "Mark received" : "Mark paid"}</button>` : !showAfter && inDays > 0 ? `<span class="small">${inDays === 1 ? "Tomorrow" : `In ${inDays} days`}</span>` : ""}</span>
     <span class="a ${x.amt > 0 ? "in" : ""}">${x.amt > 0 ? "+" : ""}${money(Math.abs(x.amt))}</span>
     ${showAfter ? `<span class="after ${x.chk < (+S().cushion || 0) ? "neg" : ""}">${money(x.chk)}</span>` : ""}</div>`;
 }
@@ -1305,7 +1312,7 @@ function drawLog(focus){
     <div class="amount"><label for="fAmt" class="small">Amount</label><div class="amt-row"><span aria-hidden="true">$</span><input id="fAmt" inputmode="decimal" placeholder="0" value="${esc(String(F.amount).replace(/^\$/, ""))}" autocomplete="off" size="1"></div></div>
     ${body}
     <div class="spacer"></div>
-    <button class="primary" id="fGo">${amt > 0 ? "Log " + money(amt, true) : "Log it"}</button>`);
+    <button class="primary" id="fGo">${goLabel(amt)}</button>`);
   sizeAmt();
   if (focus && !F.amount) setTimeout(() => $("#fAmt")?.focus(), 80);
   if (F.newCat) setTimeout(() => $("#fNewCat")?.focus(), 30);
@@ -1333,6 +1340,7 @@ function submitLog(){
   const ba = F.type === "expense" ? budAfter(F.cat, 0, date) : null;
   toast(`Logged ${money(amt, true)}${F.type === "expense" ? " " + METHOD_WORDS[F.method] : ""}${rows.length > 1 ? ", " + money(rows[1].amount) + " to savings" : ""}${ba && ba.bu ? (ba.left < -.005 ? ` · ❌ ${money(-ba.left)} over ${ba.c.label}` : ` · ${ba.st === "warn" ? "⚠️ " : ""}${money(ba.left)} left in ${ba.c.label}`) : ""}`);
 }
+const goLabel = a => F.ref ? `${F.type === "income" ? "Mark received" : "Mark paid"}${a > 0 ? " · " + money(a, true) : ""}` : a > 0 ? "Log " + money(a, true) : "Log it";
 function logEvent(ref){
   const x = project(60).find(e => e.ref === ref); if (!x) return;
   const date = x.d > today() ? iso(today()) : iso(x.d);
@@ -1478,6 +1486,7 @@ document.addEventListener("click", e => {
   if (d.open === "match") return openMatch();
   if ("close" in d){ EDIT = null; return closeSheet(); }
   if (d.log) return logEvent(d.log);
+  if (d.cardbill){ openEditor("bill", "new"); $("#eName").value = "Credit card payment"; $("#eCard").checked = true; $("#eAmt").value = balances().card.toFixed(2); syncEditor(); return; }
   if (d.h){ PLAN.h = +d.h; return render(); }
   if (d.chat) return openChat();
   if (d.aex){ if ($("#chatText")) $("#chatText").value = ""; return aSend(d.aex); }
@@ -1539,7 +1548,7 @@ document.addEventListener("click", e => {
 document.addEventListener("input", e => {
   if (e.target.id === "pCut" || e.target.id === "pMore"){ PLAN[e.target.id === "pCut" ? "cut" : "more"] = +e.target.value; updatePlan(); }
   if (e.target.id === "fAmt" && $("#fBud")) $("#fBud").innerHTML = budLine();
-  if (e.target.id === "fAmt"){ sizeAmt(); const a = num(e.target.value); $("#fGo").textContent = a > 0 ? "Log " + money(a, true) : "Log it"; }
+  if (e.target.id === "fAmt"){ sizeAmt(); const a = num(e.target.value); $("#fGo").textContent = goLabel(a); }
 });
 document.addEventListener("change", e => {
   const t = e.target;
