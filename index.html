@@ -476,12 +476,16 @@ function barHTML(spent, budget, expected, cls){
 }
 function homeView(){
   const t = today(), b = balances(), ev = project(60, null, 0, true);
-  const next = ev.find(x => x.kind === "in" && x.d >= t);
-  const until = next ? next.d : addDays(t, 14);
-  const due = ev.filter(x => x.d < until && x.kind === "out").reduce((s, x) => s - x.amt, 0);
+  // Safe to spend: the lowest checking gets before the next pay period ends (paychecks, bills, the card payment
+  // and auto saves all on their dates), minus the cushion. Spending that much today never leaves a bill uncovered.
+  const pays = ev.filter(x => x.kind === "in" && x.d >= t);
+  const next = pays[0], after = next && pays.find(x => x.d > next.d);
+  const end = after ? addDays(after.d, -1) : next ? addDays(next.d, 31) : addDays(t, 14);
   const cushion = +S().cushion || 0;
-  const owed = Math.max(0, b.card);
-  const safe = b.checking - owed - due - cushion;
+  const owed = (S().bills || []).some(x => x.amount === "card") ? 0 : Math.max(0, b.card); // no card payment scheduled: hold the balance now
+  let lowPt = b.checking, lowAt = null;
+  for (const x of ev){ if (x.d > end) break; if (x.chk < lowPt){ lowPt = x.chk; lowAt = x; } }
+  const safe = lowPt - owed - cushion;
   const days = dim(t.getFullYear(), t.getMonth());
   const by = spendIn(t.getFullYear(), t.getMonth());
   const grp = g => {
@@ -506,9 +510,9 @@ function homeView(){
   const low = ev.length ? ev.reduce((m, x) => x.chk < m.chk ? x : m) : null;
   const daysTo = next ? Math.round((next.d - t) / 864e5) : null;
   const pill = next ? (daysTo <= 0 ? "Payday today" : daysTo === 1 ? "Payday tomorrow" : `Payday in ${daysTo} days`) : "Next 2 weeks";
-  const held = [due && `${money(due)} for bills`, owed > 0.5 && `${money(owed)} card balance`, cushion && `${money(cushion)} cushion`].filter(Boolean);
-  const sub = safe < 0 ? `You're ${money(-safe)} short until payday. Hold off on spending or move some from savings.`
-    : `${next ? `Through ${fmtWD(next.d)}, ${fmtShort(next.d)}` : "For the next two weeks"}${held.length ? `, after setting aside ${held.join(", ").replace(/, ([^,]*)$/, " and $1")}` : ""}.`;
+  const held = [lowAt && `${money(b.checking - lowPt)} for bills through ${fmtShort(lowAt.d)}`, owed > 0.5 && `${money(owed)} card balance`, cushion && `${money(cushion)} cushion`].filter(Boolean);
+  const sub = safe < 0 ? `Checking runs short${lowAt ? ` around ${fmtShort(lowAt.d)} (${lowAt.name})` : ""}. Hold off on spending or move ${money(-safe)} from savings.`
+    : `${held.length ? `After holding back ${held.join(", ").replace(/, ([^,]*)$/, " and $1")}. ` : ""}Everything due through ${fmtShort(end)} is covered.`;
   const R = 27, C = 2 * Math.PI * R;
   return `
   <div class="topbar"><span class="muted" style="font-size:14px;font-weight:500">${t.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</span>
