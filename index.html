@@ -158,6 +158,18 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
+details.bud{border-top:1px solid var(--line)}
+details.bud summary{list-style:none;display:flex;align-items:center;gap:12px;padding:12px 0;cursor:pointer;min-height:56px}
+details.bud summary::-webkit-details-marker{display:none}
+details.bud summary .chev{width:16px;height:16px;color:var(--tick);flex:none;transition:transform .2s}
+details.bud[open] summary .chev{transform:rotate(90deg)}
+.bud-in{background:var(--ground);border-radius:14px;margin:0 0 12px;display:flex;flex-direction:column;overflow:hidden}
+.bud-in .item{border-top:0}
+.bud-in input.inl{background:var(--surface)}
+.budline{display:flex;gap:10px;align-items:flex-start;background:var(--surface);border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.4}
+.budline>div{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.budline b{font-weight:600} .budline.warn b{color:var(--warn)} .budline.bad b{color:var(--bad)} .budline.good b{color:var(--good)}
+.alert{display:flex;gap:8px;align-items:baseline;border:0;background:none;padding:2px 0;text-align:left;font-size:14px;color:var(--ink)}
 .chat{flex:1;display:flex;flex-direction:column;gap:10px;min-height:40vh}
 .bub{max-width:88%;padding:11px 14px;border-radius:18px;font-size:15px;line-height:1.45;overflow-wrap:anywhere}
 .bub.bot{align-self:flex-start;background:var(--surface);border-bottom-left-radius:6px}
@@ -216,7 +228,7 @@ details.mon summary .chev{width:16px;height:16px;color:var(--tick);flex:none;tra
   <button class="tab" data-view="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l5-5 4 3 7-8"/></svg>Plan</button>
   <button class="logbtn" id="logBtn" aria-label="Log spending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   <button class="tab" data-view="pockets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3h8M9 3v3.5A6 6 0 0 0 5 12v6a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-6a6 6 0 0 0-4-5.5V3"/><path d="M9.5 14h5"/></svg>Pockets</button>
-  <button class="tab" data-view="spending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Spending</button>
+  <button class="tab" data-view="spending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Budget</button>
 </div></nav>
 
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true"><div class="wrap" id="sheetIn"></div></div>
@@ -536,6 +548,8 @@ function homeView(){
     <div class="sec-head"><span class="sec-title">${t.toLocaleDateString("en-US",{month:"long"})}</span><button class="link" data-open="spending">Day ${t.getDate()} of ${days} · Details</button></div>
     ${meterLine("Needs", N)}
     ${meterLine("Wants", W)}
+    ${cats().map(c => ({c, sp: by[c.id] || 0, bu: +c.budget || 0})).filter(x => x.bu && x.sp >= x.bu * .9).sort((a, b) => b.sp / b.bu - a.sp / a.bu).slice(0, 3)
+      .map(x => `<button class="alert" data-open="spending"><span aria-hidden="true">${x.sp > x.bu + .005 ? "❌" : "⚠️"}</span><span><b>${esc(x.c.label)}</b> <span class="muted">${x.sp > x.bu + .005 ? `${money(x.sp - x.bu)} over` : `${money(x.bu - x.sp)} left`} of ${money(x.bu)}</span></span></button>`).join("")}
   </section>
   ${g.target ? `<section class="card goal">
     <svg class="ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${R}" fill="none" stroke="var(--track)" stroke-width="6"/>
@@ -1105,32 +1119,83 @@ function scrub(e){
 }
 document.addEventListener("pointerdown", e => { if (e.target.id === "pHit"){ try { e.target.setPointerCapture(e.pointerId); } catch(_){} scrub(e); } });
 document.addEventListener("pointermove", scrub);
+document.addEventListener("toggle", e => { const id = e.target.dataset?.budrow; if (id) e.target.open ? BUD_OPEN.add(id) : BUD_OPEN.delete(id); }, true);
 document.addEventListener("pointerdown", e => { if (e.target.closest?.("#chatMic")) micStart(e); });
 for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, () => micStop());
 document.addEventListener("contextmenu", e => { if (e.target.closest?.("#chatMic")) e.preventDefault(); });
 
 let spendMonth = null;
+// Budget status for one category: over, near (90% or well ahead of pace), fine
+function budStatus(sp, bu, exp){
+  if (!bu) return "";
+  if (sp > bu + .005) return "bad";
+  if (sp >= bu * .9 || (exp != null && exp < bu && sp > exp + bu * .1)) return "warn";
+  return "good";
+}
+const BUD_ICON = {bad: "❌", warn: "⚠️", good: "✅"};
+const BUD_OPEN = new Set();
+// One-liner for the log sheet and the toast: what's left in a category after an amount
+function budAfter(catId, amount, dateStr){
+  const c = catOf(catId), bu = +c.budget || 0, d = pd(dateStr || iso(today()));
+  const sp = spendIn(d.getFullYear(), d.getMonth())[catId] || 0, after = sp + (+amount || 0), left = bu - after;
+  const st = !bu ? "" : left < -.005 ? "bad" : after >= bu * .9 ? "warn" : "good";
+  const msg = !bu ? `No budget set for ${c.label}` : left < -.005 ? `This puts you ${money(-left)} over your ${c.label} budget` : `${money(left)} left in ${c.label} after this${st === "warn" ? ", almost at your limit" : ""}`;
+  return {c, bu, sp, after, left, st, msg};
+}
+function budLine(){
+  if (F.type !== "expense" || !F.cat) return "";
+  const a = budAfter(F.cat, num($("#fAmt")?.value ?? F.amount), $("#fDate")?.value || F.date);
+  if (!a.bu) return `<div class="budline"><span aria-hidden="true">💡</span><div><b>${esc(a.c.label)}: ${money(a.sp)} spent this month</b><span class="small">No budget set. Add one on the Budget tab.</span></div></div>`;
+  return `<div class="budline ${a.st}"><span aria-hidden="true">${BUD_ICON[a.st]}</span><div><b>${esc(a.msg)}.</b><span class="small">${money(a.sp)} of ${money(a.bu)} spent so far this month</span>
+    <div class="bar"><i class="${a.st === "good" ? "" : a.st}" style="width:${Math.min(100, a.after / a.bu * 100).toFixed(1)}%"></i></div></div></div>`;
+}
 function spendingView(){
   const t = today(); if (!spendMonth) spendMonth = {y: t.getFullYear(), m: t.getMonth()};
   const {y, m} = spendMonth, isNow = y === t.getFullYear() && m === t.getMonth();
-  const by = spendIn(y, m), pace = isNow ? t.getDate() / dim(y, m) : null;
+  const by = spendIn(y, m), days = dim(y, m);
   const label = new Date(y, m, 1).toLocaleDateString("en-US", {month: "long", year: y === t.getFullYear() ? undefined : "numeric"});
-  const rows = g => cats().filter(c => (c.group === "needs" ? "needs" : "wants") === g).filter(c => +c.budget > 0 || by[c.id])
-    .map(c => { const sp = by[c.id] || 0, bu = +c.budget || 0;
-      return `<div class="meter"><div class="meter-top"><b>${esc(c.label)}</b><span>${money(sp)}${bu ? ` <span class="muted">of ${money(bu)}</span>` : ` <span class="muted">no budget</span>`}</span></div>${bu ? barHTML(sp, bu, expectedFor(c, y, m)) : ""}</div>`; }).join("");
-  const orphan = Object.keys(by).filter(id => !cats().some(c => c.id === id)).map(id => `<div class="meter"><div class="meter-top"><b>${esc(id)}</b><span>${money(by[id])}</span></div></div>`).join("");
-  const list = TX().filter(x => { const d = pd(x.date); return d.getFullYear() === y && d.getMonth() === m; }).reverse();
-  const days = []; for (const x of list){ let g = days[days.length-1]; if (!g || g.date !== x.date){ g = {date: x.date, items: []}; days.push(g); } g.items.push(x); }
-  const TL = {income:"Income", save:"To savings", pull:"From savings", cardpay:"Card payment", adjust:"Balance fix"};
-  const ML = {card:"Card", checking:"Debit", savings:"Savings", cash:"Cash"};
-  return `<div class="topbar"><button class="iconbtn" data-tab="home" aria-label="Back" style="margin-left:-12px;color:var(--ink)">${ICON.back}</button>
-    <div style="display:flex;gap:4px"><button class="iconbtn" data-month="-1" aria-label="Previous month">${ICON.back}</button><button class="iconbtn" data-month="1" aria-label="Next month" ${isNow ? "disabled style=\"opacity:.3\"" : ""}><span style="transform:scaleX(-1);display:grid">${ICON.back}</span></button></div></div>
-  <h1 style="margin-top:-16px">${label}</h1>
-  <section class="sec">${rows("needs") ? `<span class="group-label">NEEDS</span>${rows("needs")}` : ""}${rows("wants") || orphan ? `<span class="group-label">WANTS</span>${rows("wants")}${orphan}` : ""}
-    ${!rows("needs") && !rows("wants") && !orphan ? `<div class="empty">Nothing spent yet and no budgets set.</div>` : ""}
-    <button class="link" data-open="settings" style="align-self:flex-start">Edit budgets</button></section>
-  <section class="sec" style="gap:0"><span class="group-label">ACTIVITY</span>
-    ${days.map(g => `<div class="small" style="padding:14px 0 4px;font-weight:500">${fmtDay(pd(g.date))}</div><div class="list">${g.items.map(x => {
+  const monthTx = TX().filter(x => { const d = pd(x.date); return d.getFullYear() === y && d.getMonth() === m; });
+  const ML = {card: "Card", checking: "Debit", savings: "Savings", cash: "Cash"};
+  const all = cats().map(c => { const sp = by[c.id] || 0, bu = +c.budget || 0, ex = isNow ? expectedFor(c, y, m) : (bu ? bu : null); return {c, sp, bu, ex, st: budStatus(sp, bu, isNow ? ex : null)}; });
+  const totBud = all.reduce((s, x) => s + x.bu, 0), totSp = Object.values(by).reduce((s, v) => s + v, 0), totEx = all.reduce((s, x) => s + (x.bu ? (isNow ? x.ex : x.bu) : 0), 0);
+  const over = all.filter(x => x.st === "bad"), near = all.filter(x => x.st === "warn");
+  const rank = {bad: 0, warn: 1, good: 2, "": 3};
+  const row = x => {
+    const {c, sp, bu, ex, st} = x, left = bu - sp, txs = monthTx.filter(t => t.type === "expense" && t.category === c.id).reverse();
+    return `<details class="bud" data-budrow="${esc(c.id)}" ${BUD_OPEN.has(c.id) ? "open" : ""}><summary>
+      <span class="mt"><b>${st && st !== "good" ? BUD_ICON[st] + " " : ""}${esc(c.label)}</b><span class="small ${st === "bad" ? "neg" : ""}">${bu ? (left >= 0 ? `${money(left)} left of ${money(bu)}` : `${money(-left)} over ${money(bu)}`) : sp ? "No budget set" : "Tap to set a budget"}</span></span>
+      <span class="mn">${money(sp)}</span>${ICON.chev}</summary>
+      ${bu ? `<div style="padding:0 0 10px">${barHTML(sp, bu, isNow ? ex : null)}</div>` : ""}
+      <div class="bud-in"><div class="item" style="padding:10px 14px;min-height:0"><label class="t" for="bud_${esc(c.id)}"><b style="font-size:14px">Monthly budget</b></label><input class="inl" id="bud_${esc(c.id)}" data-bud="${esc(c.id)}" inputmode="decimal" placeholder="Set" value="${bu ? money(bu) : ""}"></div>
+        ${txs.length ? `<div class="list" style="padding:0 14px">${txs.map(t => `<div class="ev" style="min-height:44px"><span class="n"><span style="font-size:14px">${esc(t.note || c.label)}</span><span class="small">${fmtShort(pd(t.date))} · ${ML[t.method] || ""}</span></span><span class="a">${money(+t.amount, true)}</span></div>`).join("")}</div>`
+          : `<div class="small" style="padding:4px 14px 12px">Nothing spent here ${isNow ? "yet this month" : "this month"}.</div>`}</div>
+    </details>`;
+  };
+  const group = g => all.filter(x => (x.c.group === "needs" ? "needs" : "wants") === g).sort((a, b) => rank[a.st] - rank[b.st] || b.sp - a.sp).map(row).join("");
+  const orphan = Object.keys(by).filter(id => !cats().some(c => c.id === id)).map(id => `<div class="ev"><span class="n"><span>${esc(catOf(id).label)}</span></span><span class="a">${money(by[id])}</span></div>`).join("");
+  const st = !totBud ? "" : over.length ? "bad" : near.length ? "warn" : "good";
+  const headline = !totBud ? "" : over.length ? `${over.map(x => x.c.label).join(", ")} ${over.length === 1 ? "is" : "are"} over budget` : near.length ? `${near.map(x => x.c.label).join(", ")} ${near.length === 1 ? "is" : "are"} close to the limit` : "Every budget is on track";
+  // activity (everything logged this month, newest first)
+  const TL = {income: "Income", save: "To savings", pull: "From savings", cardpay: "Card payment", adjust: "Balance fix"};
+  const list = [...monthTx].reverse(), byDay = [];
+  for (const x of list){ let g = byDay[byDay.length - 1]; if (!g || g.date !== x.date){ g = {date: x.date, items: []}; byDay.push(g); } g.items.push(x); }
+  return `<div class="topbar"><h1>Budget</h1>
+    <div style="display:flex;gap:4px;margin-right:-10px"><button class="iconbtn" data-month="-1" aria-label="Previous month">${ICON.back}</button><button class="iconbtn" data-month="1" aria-label="Next month" ${isNow ? "disabled style=\"opacity:.3\"" : ""}><span style="transform:scaleX(-1);display:grid">${ICON.back}</span></button></div></div>
+  <section class="hero" style="margin-top:-12px">
+    <div class="hero-top"><span class="label">Spent in ${label}</span>${isNow ? `<span class="pill">Day ${t.getDate()} of ${days}</span>` : ""}</div>
+    <span class="big">${bigMoney(totSp)}</span>
+    <span class="sub">${totBud ? (totBud - totSp >= 0 ? `${money(totBud - totSp)} left of ${money(totBud)} budgeted` : `${money(totSp - totBud)} over the ${money(totBud)} you budgeted`) : "Set a budget for anything you spend on. Tap a category below."}</span>
+    ${totBud ? barHTML(totSp, totBud, isNow ? totEx : null) : ""}
+  </section>
+  ${st ? `<div class="stat ${st}"><span class="ic" aria-hidden="true">${BUD_ICON[st]}</span><div><b>${esc(headline)}</b><span class="small">${st === "good" ? (isNow ? "The tick on each bar shows where you'd be at an even pace." : "") : "Tap one to see where the money went."}</span></div></div>` : ""}
+  <section class="card" style="gap:0;padding:6px 18px">
+    <span class="group-label" style="padding-top:12px">NEEDS</span>${group("needs") || `<div class="small" style="padding:8px 0">No needs categories.</div>`}
+    <span class="group-label" style="padding-top:16px">WANTS</span>${group("wants") || `<div class="small" style="padding:8px 0">No wants categories.</div>`}
+    ${orphan ? `<span class="group-label" style="padding-top:16px">OTHER</span>${orphan}` : ""}
+    <button class="link" data-edit="cat:new" style="align-self:flex-start;padding:14px 0">+ Add a category</button>
+  </section>
+  <section class="sec" style="gap:0"><span class="sec-title" style="padding-bottom:4px">Everything this month</span>
+    ${byDay.map(g => `<div class="small" style="padding:14px 0 4px;font-weight:500">${fmtDay(pd(g.date))}</div><div class="list">${g.items.map(x => {
       const title = x.type === "expense" ? (x.note || catOf(x.category).label) : (x.note || TL[x.type]);
       const sub = x.type === "expense" ? [x.note ? catOf(x.category).label : "", ML[x.method]].filter(Boolean).join(" · ") : (x.type === "adjust" ? "Balance fix, " + x.account : TL[x.type]);
       return `<div class="ev"><span class="n"><span style="font-size:14px">${esc(title)}</span><span class="small">${esc(sub)}</span></span>
@@ -1213,6 +1278,7 @@ function drawLog(focus){
     body = `<div class="field"><label for="fNote">Where</label><input id="fNote" value="${esc(F.note)}" placeholder="Trader Joe's, Guitar Center, Uber" autocomplete="off"></div>
       <div class="field"><span class="flabel">Category</span><div class="chips">${chips}
         ${F.newCat ? `<div class="newcat"><input id="fNewCat" placeholder="New category name" aria-label="New category name"><button class="chip" data-addcat="wants" aria-pressed="false">Want</button><button class="chip" data-addcat="needs" aria-pressed="false">Need</button></div>` : `${rest.length && !F.allCats ? `<button class="chip new" data-allcats="1">More</button>` : ""}<button class="chip new" data-newcat="1">+ New</button>`}</div></div>
+      <div id="fBud">${budLine()}</div>
       <div class="field"><span class="flabel">Paid with</span><div class="seg">${segBtns([["card","Card"],["checking","Debit"],["cash","Cash"]], "method", F.method)}</div></div>
       ${fld("fDate","Date",F.date,"date")}`;
   } else if (F.type === "income"){
@@ -1257,7 +1323,8 @@ function submitLog(){
   rows.forEach((r, i) => { const o = {id: newId("t"), ts: ts + i, ...r}; if (group) o.group = group; if (!o.ref) delete o.ref; TX().push(o); });
   TX().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0));
   persist(); closeSheet();
-  toast(`Logged ${money(amt, true)}${rows.length > 1 ? ", " + money(rows[1].amount) + " to savings" : ""}`);
+  const ba = F.type === "expense" ? budAfter(F.cat, 0, date) : null;
+  toast(`Logged ${money(amt, true)}${rows.length > 1 ? ", " + money(rows[1].amount) + " to savings" : ""}${ba && ba.bu ? (ba.left < -.005 ? ` · ❌ ${money(-ba.left)} over ${ba.c.label}` : ` · ${ba.st === "warn" ? "⚠️ " : ""}${money(ba.left)} left in ${ba.c.label}`) : ""}`);
 }
 function logEvent(ref){
   const x = project(60).find(e => e.ref === ref); if (!x) return;
@@ -1463,17 +1530,19 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("input", e => {
   if (e.target.id === "pCut" || e.target.id === "pMore"){ PLAN[e.target.id === "pCut" ? "cut" : "more"] = +e.target.value; updatePlan(); }
+  if (e.target.id === "fAmt" && $("#fBud")) $("#fBud").innerHTML = budLine();
   if (e.target.id === "fAmt"){ sizeAmt(); const a = num(e.target.value); $("#fGo").textContent = a > 0 ? "Log " + money(a, true) : "Log it"; }
 });
 document.addEventListener("change", e => {
   const t = e.target;
   if (t.id === "fAuto") F.auto = t.checked;
+  if (t.id === "fDate" && $("#fBud")){ F.date = t.value; $("#fBud").innerHTML = budLine(); }
   if (t.id === "pSpend"){ PLAN.spend = t.checked; updatePlan(); }
   if (t.id === "pPlan"){ const p = pocketOf(PID); if (p){ p.plan = t.checked; persist(); toast(t.checked ? "Added to your Plan" : "Taken out of your Plan"); } }
   if (t.id === "pPer"){ const p = pocketOf(PID); if (p){ p.perPay = num(t.value); persist(); render(); } }
   if (t.id === "eFreq" || t.id === "eCard") syncEditor();
   if (t.id === "importFile" && t.files[0]){ importData(t.files[0]); t.value = ""; }
-  if (t.dataset.bud){ const c = cats().find(x => x.id === t.dataset.bud); if (c){ c.budget = num(t.value); persist(); t.value = c.budget ? money(c.budget) : ""; toast(`${c.label} budget ${c.budget ? "set to " + money(c.budget) : "removed"}`); } }
+  if (t.dataset.bud){ const c = cats().find(x => x.id === t.dataset.bud); if (c){ c.budget = num(t.value); persist(); t.value = c.budget ? money(c.budget) : ""; toast(`${c.label} budget ${c.budget ? "set to " + money(c.budget) : "removed"}`); if (view === "spending") render(); } }
   if (t.dataset.set){
     const k = t.dataset.set;
     if (k === "goalName"){ S().goal = {...(S().goal || {}), name: t.value.trim() || "Savings goal"}; }
