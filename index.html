@@ -158,6 +158,8 @@ nav.tabs .in{max-width:420px;margin:0 auto;display:flex;justify-content:space-be
 .empty{padding:28px 8px;text-align:center;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 96px);z-index:40;background:var(--btn);color:var(--btn-ink);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:500;max-width:calc(100% - 48px);text-align:center}
 figure{margin:0}
+.newcat-g{display:flex;align-items:center;gap:10px;width:100%}
+.newcat-g .seg{flex:1}
 details.bud{border-top:1px solid var(--line)}
 details.bud summary{list-style:none;display:flex;align-items:center;gap:12px;padding:12px 0;cursor:pointer;min-height:56px}
 details.bud summary::-webkit-details-marker{display:none}
@@ -702,10 +704,10 @@ function aParse(raw){
   }
   // spending that already happened
   if (amt && (/\b(spent|bought|purchased)\b/.test(s) || /\bpaid \$/.test(s) && !/\b(get|getting|got|be|being) paid\b/.test(s))){
-    const cat = aCat(s), meth = /\b(debit|checking)\b/.test(s) ? "checking" : /\bcash\b/.test(s) ? "cash" : /\bsavings\b/.test(s) ? "savings" : "card";
+    const cat = aCat(s), meth = /\bcredit\b/.test(s) ? "card" : /\b(debit|checking|bank)\b/.test(s) ? "checking" : /\bcash\b/.test(s) ? "cash" : /\bsavings\b/.test(s) ? "savings" : defaultMethod();
     const date = to && to <= today() ? to : /\byesterday\b/.test(s) ? addDays(today(), -1) : today(), note = aName(s, "");
-    return {say: `Log ${money(amt, true)} on ${catOf(cat).label}${note ? ` (${note})` : ""}, paid with ${{card: "card", checking: "debit", cash: "cash", savings: "savings"}[meth]}, ${fmtDay(date)}?`,
-      apply: () => { TX().push({id: newId("t"), ts: Date.now(), type: "expense", amount: amt, category: cat, method: meth, note, date: iso(date)}); TX().sort((a, c) => a.date < c.date ? -1 : a.date > c.date ? 1 : (a.ts || 0) - (c.ts || 0)); },
+    return {say: `Log ${money(amt, true)} on ${catOf(cat).label}${note ? ` (${note})` : ""} ${METHOD_WORDS[meth]} on ${fmtDay(date)}?`,
+      apply: () => { S().lastMethod = meth; TX().push({id: newId("t"), ts: Date.now(), type: "expense", amount: amt, category: cat, method: meth, note, date: iso(date)}); TX().sort((a, c) => a.date < c.date ? -1 : a.date > c.date ? 1 : (a.ts || 0) - (c.ts || 0)); },
       done: `Logged ${money(amt, true)}.`};
   }
   // one-time money coming in
@@ -895,7 +897,7 @@ function deletePocket(){
   S().pockets = pockets().filter(p => p.id !== PF.id); persist(); view = "pockets"; closeSheet(); toast("Pocket deleted");
 }
 function openPocketMoney(kind){
-  const p = pocketOf(PID); PF = {mode: kind, amount: "", from: "savings", method: "card", item: null, note: "", date: iso(today())};
+  const p = pocketOf(PID); PF = {mode: kind, amount: "", from: "savings", method: defaultMethod(), item: null, note: "", date: iso(today())};
   if (kind === "spend" && (p.items || []).length === 1) PF.item = p.items[0].id;
   drawPocketMoney();
 }
@@ -908,7 +910,7 @@ function drawPocketMoney(){
       <span class="small">${PF.from === "savings" ? `Sets aside money already in savings. ${money(free)} of savings is free.` : `Moves money from checking (${money(b.checking)}) into savings for this pocket.`}</span>`
     : `${fld("pfNote", "What for", PF.note, "text", 'data-pf="note" placeholder="Flights, hotel, dinner"')}
       ${(p.items || []).length ? `<div class="field"><span class="flabel">Budget item</span><div class="chips">${p.items.map(i => `<button class="chip" data-pitemsel="${esc(i.id)}" aria-pressed="${i.id === PF.item}">${esc(i.label)}</button>`).join("")}</div></div>` : ""}
-      <div class="field"><span class="flabel">Paid with</span><div class="seg">${seg([["card", "Card"], ["checking", "Debit"], ["savings", "Savings"]], "pmeth", PF.method)}</div></div>`}
+      <div class="field"><span class="flabel">Paid with</span><div class="seg">${seg([["checking", "Debit"], ["card", "Credit"], ["savings", "Savings"]], "pmeth", PF.method)}</div></div>`}
     ${fld("pfDate", "Date", PF.date, "date", 'data-pf="date"')}
     <div class="spacer"></div><button class="primary" id="pfGo">${add ? "Add money" : "Log it"}</button>`);
   $$("#sheet .amt-row input").forEach(sizeAmt);
@@ -1155,7 +1157,7 @@ function spendingView(){
   const by = spendIn(y, m), days = dim(y, m);
   const label = new Date(y, m, 1).toLocaleDateString("en-US", {month: "long", year: y === t.getFullYear() ? undefined : "numeric"});
   const monthTx = TX().filter(x => { const d = pd(x.date); return d.getFullYear() === y && d.getMonth() === m; });
-  const ML = {card: "Card", checking: "Debit", savings: "Savings", cash: "Cash"};
+  const ML = {card: "Credit card", checking: "Debit", savings: "Savings", cash: "Cash"};
   const all = cats().map(c => { const sp = by[c.id] || 0, bu = +c.budget || 0, ex = isNow ? expectedFor(c, y, m) : (bu ? bu : null); return {c, sp, bu, ex, st: budStatus(sp, bu, isNow ? ex : null)}; });
   const totBud = all.reduce((s, x) => s + x.bu, 0), totSp = Object.values(by).reduce((s, v) => s + v, 0), totEx = all.reduce((s, x) => s + (x.bu ? (isNow ? x.ex : x.bu) : 0), 0);
   const over = all.filter(x => x.st === "bad"), near = all.filter(x => x.st === "warn");
@@ -1262,10 +1264,12 @@ const sel = (id, label, opts, val) => `<div class="field" id="w_${id}"><label fo
 /* --- log --- */
 const F = {};
 function openLog(pre = {}){
-  Object.assign(F, {type: "expense", move: "save", allCats: false, cat: null, method: "card", source: null, auto: true, ref: null, newCat: null, amount: "", note: "", date: iso(today())}, pre);
+  Object.assign(F, {type: "expense", move: "save", allCats: false, cat: null, method: defaultMethod(), newGroup: "wants", newCatName: "", source: null, auto: true, ref: null, newCat: null, amount: "", note: "", date: iso(today())}, pre);
   drawLog(true);
 }
-function readLog(){ if ($("#fAmt")) F.amount = $("#fAmt").value; if ($("#fNote")) F.note = $("#fNote").value; if ($("#fDate")) F.date = $("#fDate").value; }
+const defaultMethod = () => S().lastMethod || ((S().bills || []).some(b => b.amount === "card") ? "card" : "checking");
+const METHOD_WORDS = {checking: "from checking", card: "on your credit card", cash: "in cash", savings: "from savings"};
+function readLog(){ if ($("#fNewCat")) F.newCatName = $("#fNewCat").value; if ($("#fAmt")) F.amount = $("#fAmt").value; if ($("#fNote")) F.note = $("#fNote").value; if ($("#fDate")) F.date = $("#fDate").value; }
 function drawLog(focus){
   const b = balances();
   const segBtns = (arr, key, val) => arr.map(([v, l]) => `<button data-${key}="${v}" aria-pressed="${v === val}">${l}</button>`).join("");
@@ -1277,9 +1281,11 @@ function drawLog(focus){
     const chips = shown.map(c => `<button class="chip" data-cat="${esc(c.id)}" aria-pressed="${c.id === F.cat}">${esc(c.label)}</button>`).join("");
     body = `<div class="field"><label for="fNote">Where</label><input id="fNote" value="${esc(F.note)}" placeholder="Trader Joe's, Guitar Center, Uber" autocomplete="off"></div>
       <div class="field"><span class="flabel">Category</span><div class="chips">${chips}
-        ${F.newCat ? `<div class="newcat"><input id="fNewCat" placeholder="New category name" aria-label="New category name"><button class="chip" data-addcat="wants" aria-pressed="false">Want</button><button class="chip" data-addcat="needs" aria-pressed="false">Need</button></div>` : `${rest.length && !F.allCats ? `<button class="chip new" data-allcats="1">More</button>` : ""}<button class="chip new" data-newcat="1">+ New</button>`}</div></div>
+        ${F.newCat ? `<div class="newcat"><input id="fNewCat" placeholder="New category name" aria-label="New category name" value="${esc(F.newCatName)}"><button class="chip" data-addcat="${F.newGroup}" aria-pressed="true">Add</button></div>
+        <div class="newcat-g"><span class="small">Counts as</span><div class="seg"><button data-ngroup="wants" aria-pressed="${F.newGroup === "wants"}">Want</button><button data-ngroup="needs" aria-pressed="${F.newGroup === "needs"}">Need</button></div></div>
+        <span class="small" style="width:100%">Needs are must-pays like rent, groceries and gas. Wants are extras like dining out and fun. Each adds to its own bar on Home.</span>` : `${rest.length && !F.allCats ? `<button class="chip new" data-allcats="1">More</button>` : ""}<button class="chip new" data-newcat="1">+ New</button>`}</div></div>
       <div id="fBud">${budLine()}</div>
-      <div class="field"><span class="flabel">Paid with</span><div class="seg">${segBtns([["card","Card"],["checking","Debit"],["cash","Cash"]], "method", F.method)}</div></div>
+      <div class="field"><span class="flabel">Paid with</span><div class="seg">${segBtns([["checking","Debit / bank"],["card","Credit card"],["cash","Cash"]], "method", F.method)}</div></div>
       ${fld("fDate","Date",F.date,"date")}`;
   } else if (F.type === "income"){
     const srcs = (S().income || []).map(i => [i.id, i.name]).concat([["other", "Other"]]);
@@ -1312,6 +1318,7 @@ function submitLog(){
   if (F.type === "expense"){
     if (!F.cat){ toast("Pick a category"); return; }
     rows.push({type: "expense", amount: amt, category: F.cat, method: F.method, note: F.note.trim(), date, ref});
+    S().lastMethod = F.method;
   } else if (F.type === "income"){
     const src = (S().income || []).find(i => i.id === F.source) || {};
     rows.push({type: "income", amount: amt, category: "income", note: src.name || "Income", date, ref});
@@ -1324,7 +1331,7 @@ function submitLog(){
   TX().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0));
   persist(); closeSheet();
   const ba = F.type === "expense" ? budAfter(F.cat, 0, date) : null;
-  toast(`Logged ${money(amt, true)}${rows.length > 1 ? ", " + money(rows[1].amount) + " to savings" : ""}${ba && ba.bu ? (ba.left < -.005 ? ` · ❌ ${money(-ba.left)} over ${ba.c.label}` : ` · ${ba.st === "warn" ? "⚠️ " : ""}${money(ba.left)} left in ${ba.c.label}`) : ""}`);
+  toast(`Logged ${money(amt, true)}${F.type === "expense" ? " " + METHOD_WORDS[F.method] : ""}${rows.length > 1 ? ", " + money(rows[1].amount) + " to savings" : ""}${ba && ba.bu ? (ba.left < -.005 ? ` · ❌ ${money(-ba.left)} over ${ba.c.label}` : ` · ${ba.st === "warn" ? "⚠️ " : ""}${money(ba.left)} left in ${ba.c.label}`) : ""}`);
 }
 function logEvent(ref){
   const x = project(60).find(e => e.ref === ref); if (!x) return;
@@ -1511,12 +1518,13 @@ document.addEventListener("click", e => {
   if (d.cat){ readLog(); F.cat = d.cat; return drawLog(false); }
   if (d.method){ readLog(); F.method = d.method; return drawLog(false); }
   if (d.src){ readLog(); F.source = d.src; const s = (S().income || []).find(i => i.id === d.src); F.amount = s ? String(s.amount) : ""; return drawLog(false); }
+  if (d.ngroup){ readLog(); F.newGroup = d.ngroup; return drawLog(false); }
   if (d.allcats){ readLog(); F.allCats = true; return drawLog(false); }
   if (d.newcat){ readLog(); F.newCat = true; return drawLog(false); }
   if (d.addcat){
     const label = ($("#fNewCat")?.value || "").trim(); if (!label) return toast("Type a category name first");
     readLog(); const c = {id: newId("c"), label, group: d.addcat, budget: 0}; S().categories = [...cats(), c]; persist();
-    F.newCat = null; F.cat = c.id; return drawLog(false);
+    F.newCat = null; F.newCatName = ""; F.cat = c.id; return drawLog(false);
   }
   if (el.id === "fGo") return submitLog();
   // editors
@@ -1555,7 +1563,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "chatText"){ e.preventDefault(); const v = e.target.value; e.target.value = ""; return aSend(v); }
   if (e.key === "Escape" && !$("#sheet").hidden){ EDIT = null; closeSheet(); }
   if (e.key === "Enter" && e.target.tagName === "INPUT"){
-    if (e.target.id === "fNewCat"){ e.preventDefault(); $('[data-addcat="wants"]')?.click(); }
+    if (e.target.id === "fNewCat"){ e.preventDefault(); $('[data-addcat]')?.click(); }
     else if (e.target.closest("#sheet") && $("#fGo")){ e.preventDefault(); submitLog(); }
     else if (e.target.classList.contains("inl")) e.target.blur();
   }
